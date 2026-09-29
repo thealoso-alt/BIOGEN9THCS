@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role, school affiliation, and gamification metrics.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 64 },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "classIds": { "type": "array", "description": "IDs of classes enrolled in or managed" },
+        "currentClassId": { "type": "string", "maxLength": 128 },
+        "xp": { "type": "number" },
+        "level": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "fullName", "role", "xp", "level", "createdAt"]
+    },
+    "ClassRoom": {
+      "title": "ClassRoom",
+      "description": "A biology class managed by a teacher.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 64 },
+        "code": { "type": "string", "maxLength": 32 },
+        "subject": { "type": "string", "maxLength": 64 },
+        "schoolYear": { "type": "string", "maxLength": 32 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "teacherName": { "type": "string", "maxLength": 100 },
+        "studentCount": { "type": "number" },
+        "studentIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "code", "teacherId", "teacherName", "createdAt"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A biology question for quizzes and challenges.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "topicId": { "type": "string", "maxLength": 64 },
+        "question": { "type": "string", "maxLength": 1000 },
+        "type": { "type": "string", "enum": ["mcq", "true_false", "matching", "fill_blank", "ordering", "image_question", "drag_drop"] },
+        "options": { "type": "array" },
+        "correctAnswer": { "type": "string", "maxLength": 500 },
+        "explanation": { "type": "string", "maxLength": 2000 },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "language": { "type": "string", "enum": ["vi", "en", "bilingual"] },
+        "englishTerm": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["draft", "under_review", "approved", "published"] },
+        "isAiGenerated": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["topicId", "question", "type", "correctAnswer", "difficulty", "createdBy", "status", "createdAt"]
+    },
+    "TopicProgress": {
+      "title": "TopicProgress",
+      "description": "Student progress for a specific genetics topic.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "topicId": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["locked", "available", "in_progress", "completed", "mastered"] },
+        "progressPercent": { "type": "number" },
+        "exploreCompleted": { "type": "boolean" },
+        "interactiveCompleted": { "type": "boolean" },
+        "knowledgeRead": { "type": "boolean" },
+        "englishBioScore": { "type": "number" },
+        "practiceScore": { "type": "number" },
+        "lastStudiedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "topicId", "status", "progressPercent", "lastStudiedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile documents stored by UID."
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassRoom" },
+      "description": "Classes created and managed by teachers."
+    },
+    "/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Central question bank including draft, reviewed, and published questions."
+    },
+    "/users/{userId}/progress/{topicId}": {
+      "schema": { "$ref": "#/entities/TopicProgress" },
+      "description": "Student progress records per topic."
+    }
+  }
+}

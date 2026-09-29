@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        try {
+          var _nativeFetch = typeof window !== 'undefined' && window.fetch ? window.fetch.bind(window) : null;
+          var _activeFetch = _nativeFetch;
+
+          var desc = {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return _activeFetch || _nativeFetch;
+            },
+            set: function(fn) {
+              _activeFetch = fn;
+            }
+          };
+
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            try {
+              Object.defineProperty(Window.prototype, 'fetch', desc);
+            } catch (e) {}
+          }
+          if (typeof window !== 'undefined') {
+            try {
+              Object.defineProperty(window, 'fetch', desc);
+            } catch (e) {}
+          }
+          if (typeof globalThis !== 'undefined' && globalThis !== window) {
+            try {
+              Object.defineProperty(globalThis, 'fetch', desc);
+            } catch (e) {}
+          }
+        } catch (err) {}
+      })();
+    </script>
+    <title>BIOGEN 9 – Digital Genetics Learning Hub</title>
+    <meta name="description" content="Nền tảng học tập Sinh học lớp 9 chuyên sâu: Di truyền phân tử, Di truyền tế bào, English Biology, mô hình tương tác và AI hỗ trợ giáo viên - học sinh." />
+    <meta property="og:title" content="BIOGEN 9 – Digital Genetics Learning Hub" />
+    <meta property="og:description" content="Nền tảng học tập Sinh học lớp 9 chuyên sâu: Di truyền phân tử, Di truyền tế bào, English Biology, mô hình tương tác và AI hỗ trợ giáo viên - học sinh." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-950 text-slate-100 antialiased font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

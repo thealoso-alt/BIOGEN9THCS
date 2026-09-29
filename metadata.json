@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix Remix BIOGEN 9 – Digital Genetics Learning Hub",
+  "description": "Nền tảng học tập Sinh học lớp 9 chuyên sâu: Di truyền phân tử, Di truyền tế bào, English Biology, mô hình tương tác và AI hỗ trợ giáo viên - học sinh.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
