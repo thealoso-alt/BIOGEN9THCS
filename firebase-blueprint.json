@@ -101,6 +101,41 @@
         "keyTimestamps": { "type": "array" }
       },
       "required": ["topicId", "title", "shareUrl", "embedUrl", "provider", "authorName", "createdAt"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "User credential document allowing online cross-device sign-in.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 64 },
+        "password": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "fullName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 128 },
+        "schoolName": { "type": "string", "maxLength": 128 },
+        "classIds": { "type": "array" },
+        "currentClassId": { "type": "string", "maxLength": 64 },
+        "xp": { "type": "number" },
+        "level": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "badges": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "role", "fullName", "createdAt"]
+    },
+    "TopicKnowledge": {
+      "title": "TopicKnowledge",
+      "description": "Customizable topic knowledge content edited by teachers and synchronized online for students.",
+      "type": "object",
+      "properties": {
+        "topicId": { "type": "string", "maxLength": 64 },
+        "sections": { "type": "array" },
+        "lastUpdatedBy": { "type": "string", "maxLength": 128 },
+        "lastUpdatedByName": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["topicId", "sections"]
     }
   },
   "firestore": {
@@ -116,6 +151,10 @@
       "schema": { "$ref": "#/entities/Question" },
       "description": "Central question bank including draft, reviewed, and published questions."
     },
+    "/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/Account" },
+      "description": "Cross-device user accounts and student credentials."
+    },
     "/users/{userId}/progress/{topicId}": {
       "schema": { "$ref": "#/entities/TopicProgress" },
       "description": "Student progress records per topic."
@@ -123,6 +162,10 @@
     "/topic_videos/{videoId}": {
       "schema": { "$ref": "#/entities/TopicVideo" },
       "description": "Shared learning videos linked by teachers from Google Drive or YouTube."
+    },
+    "/topic_knowledge/{topicId}": {
+      "schema": { "$ref": "#/entities/TopicKnowledge" },
+      "description": "Customized core scientific knowledge edited by teachers."
     }
   }
 }

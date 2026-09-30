@@ -9,6 +9,14 @@ import {
   UsernamePattern,
   PasswordPattern,
 } from '../utils/accountGenerator';
+import {
+  subscribeToClasses,
+  saveClassToCloud,
+  subscribeToAccounts,
+  saveAccountsToCloud,
+  saveSingleAccountToCloud,
+  deleteAccountFromCloud,
+} from '../firebase/classService';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -117,6 +125,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY_PROGRESS, JSON.stringify(userProgress));
   }, [userProgress]);
+
+  // Real-time synchronization with Firestore Cloud Database for cross-device access
+  useEffect(() => {
+    const unsubClasses = subscribeToClasses((cloudClasses) => {
+      if (cloudClasses && cloudClasses.length > 0) {
+        setClasses(cloudClasses);
+      }
+    });
+
+    const unsubAccounts = subscribeToAccounts((cloudAccounts) => {
+      if (cloudAccounts && cloudAccounts.length > 0) {
+        setAccounts(cloudAccounts);
+      }
+    });
+
+    return () => {
+      unsubClasses();
+      unsubAccounts();
+    };
+  }, []);
 
   const login = async (identifier: string, pass: string, targetRole: UserRole) => {
     const trimmed = identifier.trim().toLowerCase();
@@ -402,6 +430,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
     };
     setClasses(prev => [newClass, ...prev]);
+    saveClassToCloud(newClass).catch(err => console.warn('Could not save class to cloud:', err));
     if (user && user.role === 'teacher') {
       setUser({ ...user, classIds: [...user.classIds, newClass.id], currentClassId: newClass.id });
     }
@@ -517,21 +546,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // 4. Update accounts state
+    // 4. Update accounts state and sync to Firestore Cloud Database
     setAccounts(prev => [...newAccounts, ...prev]);
+    saveAccountsToCloud(newAccounts).catch(err => console.warn('Could not save accounts to cloud:', err));
 
-    // 5. Update class student list & count
+    // 5. Update class student list & count and sync to Firestore Cloud Database
+    const updatedTargetClass = {
+      ...targetClass,
+      studentCount: targetClass.studentCount + createdStudentRecords.length,
+      studentIds: [...targetClass.studentIds, ...newStudentUids],
+    };
     setClasses(prev =>
-      prev.map(c =>
-        c.id === classId
-          ? {
-              ...c,
-              studentCount: c.studentCount + createdStudentRecords.length,
-              studentIds: [...c.studentIds, ...newStudentUids],
-            }
-          : c
-      )
+      prev.map(c => c.id === classId ? updatedTargetClass : c)
     );
+    saveClassToCloud(updatedTargetClass).catch(err => console.warn('Could not save updated class to cloud:', err));
 
     return {
       success: true,
@@ -572,6 +600,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   const updateStudentPassword = (studentUid: string, newPassword: string): boolean => {
     if (!newPassword || newPassword.trim().length < 4) return false;
+    const targetAcc = accounts.find(acc => acc.uid === studentUid);
+    if (targetAcc) {
+      const updatedAcc = { ...targetAcc, password: newPassword.trim(), initialPassword: newPassword.trim() };
+      saveSingleAccountToCloud(updatedAcc).catch(err => console.warn('Could not update password in cloud:', err));
+    }
     setAccounts(prev =>
       prev.map(acc =>
         acc.uid === studentUid
@@ -587,6 +620,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   const deleteStudent = (studentUid: string, classId: string): boolean => {
     setAccounts(prev => prev.filter(acc => acc.uid !== studentUid));
+    deleteAccountFromCloud(studentUid).catch(err => console.warn('Could not delete account from cloud:', err));
+
+    const targetClass = classes.find(c => c.id === classId);
+    if (targetClass) {
+      const updatedClass = {
+        ...targetClass,
+        studentCount: Math.max(0, targetClass.studentCount - 1),
+        studentIds: targetClass.studentIds.filter(id => id !== studentUid),
+      };
+      saveClassToCloud(updatedClass).catch(err => console.warn('Could not update class in cloud:', err));
+    }
+
     setClasses(prev =>
       prev.map(c =>
         c.id === classId

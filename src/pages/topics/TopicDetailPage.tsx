@@ -3,7 +3,6 @@ import { useNavigation } from '../../hooks/useNavigation';
 import { useAuth } from '../../hooks/useAuth';
 import { GENETICS_TOPICS } from '../../data/topicsData';
 import { ENGLISH_BIO_TERMS } from '../../data/englishBioData';
-import { TOPICS_KNOWLEDGE_BASE } from '../../data/topicsKnowledgeData';
 import {
   getRandomizedPracticeQuestionsForTopic,
   getPracticeQuestionsForTopic,
@@ -11,8 +10,13 @@ import {
   MultipleChoiceQuestion,
   TrueFalseQuestion,
 } from '../../data/practiceQuestionsData';
+import {
+  getPracticeQuestionsFromBank,
+  subscribeToQuestionBank,
+} from '../../firebase/questionBankService';
 import { TopicModelRenderer } from '../../components/models/TopicModelRenderer';
 import { TopicVideoLibrary } from '../../components/materials/TopicVideoLibrary';
+import { TopicKnowledgeViewer } from '../../components/knowledge/TopicKnowledgeViewer';
 import {
   Compass,
   Play,
@@ -69,11 +73,10 @@ export const TopicDetailPage: React.FC = () => {
 
   const topic = GENETICS_TOPICS.find(t => t.id === selectedTopicId) || GENETICS_TOPICS[0];
   const topicTerms = ENGLISH_BIO_TERMS.filter(term => term.topicId === topic.id);
-  const knowledgeContent = TOPICS_KNOWLEDGE_BASE[topic.id] || TOPICS_KNOWLEDGE_BASE['dna'];
 
-  // Practice questions state: randomized exactly 7 MCQs (4 options) + 3 True/False = 10 questions
+  // Practice questions state: loaded directly from the Teacher's Central Question Bank (Cloud Synced)
   const [practiceQuestions, setPracticeQuestions] = useState<PracticeQuestion[]>(() =>
-    getRandomizedPracticeQuestionsForTopic(topic.id)
+    getPracticeQuestionsFromBank(topic.id)
   );
 
   // Practice runner state
@@ -82,19 +85,30 @@ export const TopicDetailPage: React.FC = () => {
   const [practiceFinished, setPracticeFinished] = useState(false);
   const [practiceScore, setPracticeScore] = useState(0);
 
-  // When selected topic changes, ensure 3D Model is displayed first, generate randomized questions and reset state
+  // When selected topic changes, ensure 3D Model is displayed first, load randomized questions from Central Bank
   useEffect(() => {
     if (selectedTab && VALID_TABS.includes(selectedTab) && selectedTab !== 'explore') {
       setActiveTab(selectedTab);
     } else {
       setActiveTab('interactive');
     }
-    setPracticeQuestions(getRandomizedPracticeQuestionsForTopic(topic.id));
+    setPracticeQuestions(getPracticeQuestionsFromBank(topic.id));
     setUserAnswers({});
     setSubmittedQuestions({});
     setPracticeFinished(false);
     setPracticeScore(0);
   }, [topic.id, selectedTab]);
+
+  // Subscribe to Central Question Bank updates from Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToQuestionBank(() => {
+      // If student hasn't submitted yet, keep the questions synchronized with teacher's edits
+      if (!practiceFinished && Object.keys(userAnswers).length === 0) {
+        setPracticeQuestions(getPracticeQuestionsFromBank(topic.id));
+      }
+    });
+    return () => unsubscribe();
+  }, [topic.id, practiceFinished, userAnswers]);
 
   // Track actual learning activities for accurate progress calculation
   useEffect(() => {
@@ -260,9 +274,9 @@ export const TopicDetailPage: React.FC = () => {
     );
   };
 
-  // Restart practice with a brand new randomized 10-question set
+  // Restart practice with a brand new randomized 10-question set from the Central Question Bank
   const handleRestartPractice = () => {
-    setPracticeQuestions(getRandomizedPracticeQuestionsForTopic(topic.id));
+    setPracticeQuestions(getPracticeQuestionsFromBank(topic.id));
     setUserAnswers({});
     setSubmittedQuestions({});
     setPracticeFinished(false);
@@ -442,59 +456,9 @@ export const TopicDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: COMPREHENSIVE SCIENTIFIC KNOWLEDGE */}
+      {/* TAB 2: COMPREHENSIVE SCIENTIFIC KNOWLEDGE (CUSTOMIZABLE & CLOUD-SYNCED) */}
       {activeTab === 'knowledge' && (
-        <div className="rounded-3xl border border-sky-100 bg-white p-6 sm:p-8 space-y-6 shadow-sm text-slate-800">
-          <div className="max-w-4xl space-y-6">
-            {knowledgeContent.sections.map((sec, idx) => (
-              <div key={idx} className="space-y-3 pb-6 border-b border-slate-100 last:border-b-0">
-                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <span className="w-1.5 h-4 bg-sky-500 rounded-full" />
-                  <span>{sec.heading}</span>
-                </h3>
-
-                {sec.paragraphs?.map((p, pIdx) => (
-                  <p key={pIdx} className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-                    {p}
-                  </p>
-                ))}
-
-                {sec.bulletPoints && (
-                  <ul className="space-y-2 text-xs sm:text-sm text-slate-700 pl-3">
-                    {sec.bulletPoints.map((bp, bpIdx) => (
-                      <li key={bpIdx} className="flex items-start gap-2">
-                        <span className="text-sky-500 font-bold mt-0.5 shrink-0">•</span>
-                        <span>{bp}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {sec.formulaBox && (
-                  <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-2 shadow-xs">
-                    <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block">
-                      {sec.formulaBox.title}:
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-mono font-bold text-amber-900">
-                      {sec.formulaBox.formulas.map((f, fIdx) => (
-                        <div key={fIdx} className="p-2.5 rounded-xl bg-white border border-amber-200 shadow-xs">
-                          {f}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {sec.highlightBox && (
-                  <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200/80 text-xs sm:text-sm text-sky-900 flex items-start gap-2.5">
-                    <Info className="h-4 w-4 shrink-0 text-sky-600 mt-0.5" />
-                    <span className="leading-relaxed font-medium">{sec.highlightBox}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <TopicKnowledgeViewer topicId={topic.id} topicTitleVi={topic.titleVi} />
       )}
 
       {/* TAB 3: ENGLISH BIOLOGY WITH MALE AND FEMALE VOICES */}

@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
 import { GENETICS_TOPICS } from '../../data/topicsData';
 import { DEMO_QUESTIONS } from '../../data/mockSeedData';
-import { QuestionItem, QuestionStatus, QuestionType } from '../../types/question';
+import { QuestionItem, QuestionStatus, QuestionType, QuestionDifficulty } from '../../types/question';
 import { ClassRoom, StudentAccount } from '../../types/auth';
 import { StudentBatchImportModal } from '../../components/teacher/StudentBatchImportModal';
 import { exportAccountsToCsv, generateStudentPassword } from '../../utils/accountGenerator';
+import {
+  subscribeToQuestionBank,
+  saveQuestionToCloud,
+  deleteQuestionFromCloud,
+  getCachedQuestions,
+} from '../../firebase/questionBankService';
 import {
   School,
   Users,
@@ -32,6 +38,10 @@ import {
   Lock,
   RotateCcw,
   Sparkle,
+  Pencil,
+  Filter,
+  X,
+  Cloud,
 } from 'lucide-react';
 
 export const TeacherDashboard: React.FC = () => {
@@ -48,8 +58,38 @@ export const TeacherDashboard: React.FC = () => {
   // Active teacher tabs: overview, classes, students, questions, ai_generator, analytics
   const [activeTab, setActiveTab] = useState<'overview' | 'classes' | 'students' | 'questions' | 'ai_generator' | 'analytics'>('overview');
 
-  // Question bank state (with Teacher Review workflow: Draft -> Review -> Edit -> Approve -> Publish)
-  const [questions, setQuestions] = useState<QuestionItem[]>(DEMO_QUESTIONS);
+  // Question bank state (synchronized with Firestore Cloud Database & local storage)
+  const [questions, setQuestions] = useState<QuestionItem[]>(() => getCachedQuestions());
+
+  useEffect(() => {
+    const unsubscribe = subscribeToQuestionBank((cloudQuestions) => {
+      if (cloudQuestions && cloudQuestions.length > 0) {
+        setQuestions(cloudQuestions);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Filter state for Question Bank
+  const [qSearchQuery, setQSearchQuery] = useState('');
+  const [qTopicFilter, setQTopicFilter] = useState('all');
+  const [qTypeFilter, setQTypeFilter] = useState('all');
+  const [qStatusFilter, setQStatusFilter] = useState('all');
+  const [qDifficultyFilter, setQDifficultyFilter] = useState('all');
+
+  // Add / Edit Question Modal State
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [formTopicId, setFormTopicId] = useState('dna');
+  const [formQuestionType, setFormQuestionType] = useState<QuestionType>('mcq');
+  const [formPrompt, setFormPrompt] = useState('');
+  const [formOptions, setFormOptions] = useState<string[]>(['', '', '', '']);
+  const [formCorrectIndex, setFormCorrectIndex] = useState(0);
+  const [formTrueFalseAnswer, setFormTrueFalseAnswer] = useState(true);
+  const [formExplanation, setFormExplanation] = useState('');
+  const [formDifficulty, setFormDifficulty] = useState<QuestionDifficulty>('medium');
+  const [formStatus, setFormStatus] = useState<QuestionStatus>('published');
+  const [isSavingQuestion, setIsSavingQuestion] = useState(false);
 
   // New Class Form Modal
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -328,21 +368,178 @@ export const TeacherDashboard: React.FC = () => {
       };
 
       setQuestions(prev => [newDraftQuestion, ...prev]);
+      saveQuestionToCloud(newDraftQuestion).catch(err => console.warn('Could not save AI question to cloud:', err));
       setIsGenerating(false);
-      setAiSuccessMsg(`Đã tạo thành công câu hỏi ở trạng thái BẢN NHÁP (DRAFT). Vui lòng duyệt trước khi xuất bản.`);
+      setAiSuccessMsg(`Đã tạo thành công câu hỏi ở trạng thái BẢN NHÁP (DRAFT) và lưu lên Cloud. Vui lòng duyệt trước khi xuất bản.`);
     }, 1200);
   };
 
-  const handleApproveAndPublish = (qId: string) => {
-    setQuestions(prev =>
-      prev.map(q => (q.id === qId ? { ...q, status: 'published' as QuestionStatus, updatedAt: new Date().toISOString() } : q))
-    );
+  const handleOpenAddQuestion = () => {
+    setEditingQuestionId(null);
+    setFormTopicId(qTopicFilter !== 'all' ? qTopicFilter : 'dna');
+    setFormQuestionType('mcq');
+    setFormPrompt('');
+    setFormOptions(['', '', '', '']);
+    setFormCorrectIndex(0);
+    setFormTrueFalseAnswer(true);
+    setFormExplanation('');
+    setFormDifficulty('medium');
+    setFormStatus('published');
+    setIsQuestionModalOpen(true);
   };
 
-  const handleDeleteQuestion = (qId: string) => {
-    setQuestions(prev => prev.filter(q => q.id !== qId));
-    if (previewQuestion?.id === qId) setPreviewQuestion(null);
+  const handleOpenEditQuestion = (q: QuestionItem) => {
+    setEditingQuestionId(q.id);
+    setFormTopicId(q.topicId);
+    setFormQuestionType(q.type);
+    setFormPrompt(q.question);
+    if (q.type === 'mcq') {
+      const opts = q.options.map(o => o.text.replace(/^[A-D]\.\s*/i, ''));
+      while (opts.length < 4) opts.push('');
+      setFormOptions(opts.slice(0, 4));
+
+      let cIdx = 0;
+      if (typeof q.correctAnswer === 'string' && q.correctAnswer.startsWith('opt_')) {
+        cIdx = parseInt(q.correctAnswer.replace('opt_', ''), 10) || 0;
+      }
+      setFormCorrectIndex(cIdx);
+    } else {
+      let isTrue = true;
+      if (q.correctAnswer === 'opt_false' || q.correctAnswer === 'false') isTrue = false;
+      setFormTrueFalseAnswer(isTrue);
+      setFormOptions(['', '', '', '']);
+    }
+    setFormExplanation(q.explanation);
+    setFormDifficulty(q.difficulty);
+    setFormStatus(q.status);
+    setIsQuestionModalOpen(true);
   };
+
+  const handleSaveQuestionForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formPrompt.trim()) {
+      alert('Vui lòng nhập nội dung câu hỏi!');
+      return;
+    }
+
+    setIsSavingQuestion(true);
+
+    let savedQuestion: QuestionItem;
+    if (formQuestionType === 'mcq') {
+      const letters = ['A. ', 'B. ', 'C. ', 'D. '];
+      const validOptions = formOptions.map((opt, idx) => ({
+        id: `opt_${idx}`,
+        text: `${letters[idx]}${opt.trim() || `Phương án ${letters[idx].trim()}`}`,
+        isCorrect: idx === formCorrectIndex,
+      }));
+
+      savedQuestion = {
+        id: editingQuestionId || `custom_q_${Date.now()}`,
+        topicId: formTopicId,
+        question: formPrompt.trim(),
+        type: 'mcq',
+        options: validOptions,
+        correctAnswer: `opt_${formCorrectIndex}`,
+        explanation: formExplanation.trim() || 'Lời giải chi tiết theo chương trình Sinh học 9.',
+        difficulty: formDifficulty,
+        language: 'vi',
+        createdBy: user?.uid || 'teacher_1',
+        createdByName: user?.fullName || 'Giáo viên',
+        status: formStatus,
+        createdAt: editingQuestionId ? (questions.find(q => q.id === editingQuestionId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      savedQuestion = {
+        id: editingQuestionId || `custom_q_${Date.now()}`,
+        topicId: formTopicId,
+        question: formPrompt.trim(),
+        type: 'true_false',
+        options: [
+          { id: 'opt_true', text: 'Đúng', isCorrect: formTrueFalseAnswer === true },
+          { id: 'opt_false', text: 'Sai', isCorrect: formTrueFalseAnswer === false },
+        ],
+        correctAnswer: formTrueFalseAnswer ? 'opt_true' : 'opt_false',
+        explanation: formExplanation.trim() || 'Phân tích nhận định tính đúng/sai.',
+        difficulty: formDifficulty,
+        language: 'vi',
+        createdBy: user?.uid || 'teacher_1',
+        createdByName: user?.fullName || 'Giáo viên',
+        status: formStatus,
+        createdAt: editingQuestionId ? (questions.find(q => q.id === editingQuestionId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    try {
+      await saveQuestionToCloud(savedQuestion);
+      setQuestions(prev => {
+        const idx = prev.findIndex(q => q.id === savedQuestion.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = savedQuestion;
+          return next;
+        }
+        return [savedQuestion, ...prev];
+      });
+      setIsQuestionModalOpen(false);
+      triggerToast(editingQuestionId ? 'Đã cập nhật câu hỏi và đồng bộ Cloud thành công!' : 'Đã thêm câu hỏi mới vào Ngân hàng và đồng bộ Cloud!');
+    } catch (err) {
+      console.warn('Could not save to cloud:', err);
+      triggerToast('Đã lưu cục bộ, kết nối Cloud đang đồng bộ lại.');
+    } finally {
+      setIsSavingQuestion(false);
+    }
+  };
+
+  const handleApproveAndPublish = async (qId: string) => {
+    const target = questions.find(q => q.id === qId);
+    if (!target) return;
+    const updated: QuestionItem = {
+      ...target,
+      status: 'published',
+      updatedAt: new Date().toISOString()
+    };
+    setQuestions(prev =>
+      prev.map(q => (q.id === qId ? updated : q))
+    );
+    try {
+      await saveQuestionToCloud(updated);
+      triggerToast('Đã xuất bản câu hỏi lên Cloud! Học sinh ở mọi thiết bị có thể làm ngay.');
+    } catch (err) {
+      console.warn('Could not publish to cloud:', err);
+    }
+  };
+
+  const handleDeleteQuestion = async (qId: string) => {
+    const targetQ = questions.find(q => q.id === qId);
+    if (!targetQ) return;
+    if (window.confirm(`Thầy/Cô có chắc chắn muốn xóa câu hỏi này khỏi Ngân hàng không?`)) {
+      setQuestions(prev => prev.filter(q => q.id !== qId));
+      if (previewQuestion?.id === qId) setPreviewQuestion(null);
+      try {
+        await deleteQuestionFromCloud(qId);
+        triggerToast('Đã xóa câu hỏi khỏi Ngân hàng và Cloud Firestore thành công.');
+      } catch (err) {
+        console.warn('Could not delete question from cloud:', err);
+      }
+    }
+  };
+
+  const filteredQuestions: QuestionItem[] = questions.filter(q => {
+    if (qTopicFilter !== 'all' && q.topicId !== qTopicFilter) return false;
+    if (qTypeFilter !== 'all' && q.type !== qTypeFilter) return false;
+    if (qStatusFilter !== 'all' && q.status !== qStatusFilter) return false;
+    if (qDifficultyFilter !== 'all' && q.difficulty !== qDifficultyFilter) return false;
+    if (qSearchQuery.trim()) {
+      const term = qSearchQuery.toLowerCase();
+      const matchText = (q.question || '').toLowerCase().includes(term);
+      const matchExpl = (q.explanation || '').toLowerCase().includes(term);
+      const matchOpt = (q.options || []).some(o => (o.text || '').toLowerCase().includes(term));
+      if (!matchText && !matchExpl && !matchOpt) return false;
+    }
+    return true;
+  });
 
   const totalStudents = classes.reduce((sum, c) => sum + c.studentCount, 0);
 
@@ -453,74 +650,92 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto text-xs">
+      {/* Navigation Sub-Tabs - High Contrast, Crystal Clear Pill Nav */}
+      <div className="bg-slate-900/95 backdrop-blur-md p-1.5 sm:p-2 rounded-2xl border-2 border-slate-700 shadow-xl flex items-center gap-1.5 sm:gap-2 overflow-x-auto text-xs">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 rounded-xl font-bold transition-colors ${
+          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shadow-xs ${
             activeTab === 'overview'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-900/40 border border-purple-400/40 ring-1 ring-white/20'
+              : 'text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700/80 hover:border-slate-600'
           }`}
         >
-          Tổng quan &amp; Hoạt động
+          <BookOpen className={`h-4 w-4 ${activeTab === 'overview' ? 'text-white' : 'text-purple-400'}`} />
+          <span>Tổng quan &amp; Hoạt động</span>
         </button>
 
         <button
           onClick={() => setActiveTab('students')}
-          className={`px-4 py-2 rounded-xl font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shadow-xs ${
             activeTab === 'students'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-900/40 border border-purple-400/40 ring-1 ring-white/20'
+              : 'text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700/80 hover:border-slate-600'
           }`}
         >
-          <Users className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Học sinh &amp; Cấp TK ({totalStudents})</span>
+          <Users className={`h-4 w-4 ${activeTab === 'students' ? 'text-white' : 'text-emerald-400'}`} />
+          <span>Học sinh &amp; Cấp TK</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+            activeTab === 'students' ? 'bg-purple-950/80 text-purple-200 border border-purple-300/40' : 'bg-slate-900 text-emerald-300 border border-slate-600'
+          }`}>
+            {totalStudents}
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('classes')}
-          className={`px-4 py-2 rounded-xl font-bold transition-colors ${
+          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shadow-xs ${
             activeTab === 'classes'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-900/40 border border-purple-400/40 ring-1 ring-white/20'
+              : 'text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700/80 hover:border-slate-600'
           }`}
         >
-          Quản lý Lớp học ({classes.length})
+          <School className={`h-4 w-4 ${activeTab === 'classes' ? 'text-white' : 'text-amber-400'}`} />
+          <span>Quản lý Lớp học</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+            activeTab === 'classes' ? 'bg-purple-950/80 text-purple-200 border border-purple-300/40' : 'bg-slate-900 text-amber-300 border border-slate-600'
+          }`}>
+            {classes.length}
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('questions')}
-          className={`px-4 py-2 rounded-xl font-bold transition-colors ${
+          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shadow-xs ${
             activeTab === 'questions'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-900/40 border border-purple-400/40 ring-1 ring-white/20'
+              : 'text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700/80 hover:border-slate-600'
           }`}
         >
-          Ngân hàng Câu hỏi ({questions.length})
+          <CheckCircle2 className={`h-4 w-4 ${activeTab === 'questions' ? 'text-white' : 'text-sky-400'}`} />
+          <span>Ngân hàng Câu hỏi</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+            activeTab === 'questions' ? 'bg-purple-950/80 text-purple-200 border border-purple-300/40' : 'bg-slate-900 text-sky-300 border border-slate-600'
+          }`}>
+            {questions.length}
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('ai_generator')}
-          className={`px-4 py-2 rounded-xl font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shadow-xs ${
             activeTab === 'ai_generator'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-900/40 border border-purple-400/40 ring-1 ring-white/20'
+              : 'text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700/80 hover:border-slate-600'
           }`}
         >
-          <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+          <Sparkles className={`h-4 w-4 ${activeTab === 'ai_generator' ? 'text-white' : 'text-cyan-400'}`} />
           <span>AI Question Generator</span>
         </button>
 
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2 rounded-xl font-bold transition-colors flex items-center gap-1.5 ${
+          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 whitespace-nowrap shadow-xs ${
             activeTab === 'analytics'
-              ? 'bg-purple-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold shadow-md shadow-purple-900/40 border border-purple-400/40 ring-1 ring-white/20'
+              : 'text-slate-200 bg-slate-800/90 hover:bg-slate-700 hover:text-white border border-slate-700/80 hover:border-slate-600'
           }`}
         >
-          <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+          <FileSpreadsheet className={`h-4 w-4 ${activeTab === 'analytics' ? 'text-white' : 'text-emerald-400'}`} />
           <span>Báo cáo &amp; Xuất dữ liệu</span>
         </button>
       </div>
@@ -1133,98 +1348,282 @@ export const TeacherDashboard: React.FC = () => {
 
       {/* Tab: Question Bank */}
       {activeTab === 'questions' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-white">Ngân hàng Câu hỏi</h3>
-              <p className="text-xs text-slate-400">Duyệt, chỉnh sửa và xuất bản câu hỏi kiểm tra</p>
-            </div>
-            <button
-              onClick={() => setActiveTab('ai_generator')}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 flex items-center gap-1.5"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Tạo thêm bằng AI</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {questions.map((q, idx) => (
-              <div
-                key={q.id}
-                className={`p-4 rounded-xl bg-slate-900 border transition-all ${
-                  q.status === 'draft'
-                    ? 'border-amber-700/60 bg-amber-950/10'
-                    : 'border-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-slate-400 font-semibold">#{idx + 1}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      q.status === 'draft'
-                        ? 'bg-amber-950 text-amber-400 border border-amber-800'
-                        : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                    }`}>
-                      {q.status === 'draft' ? 'BẢN NHÁP (DRAFT)' : 'ĐÃ XUẤT BẢN'}
-                    </span>
-                    {q.englishTerm && (
-                      <span className="text-[11px] text-cyan-400 font-mono">
-                        {q.englishTerm}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    Độ khó: {q.difficulty}
+        <div className="space-y-6">
+          {/* Header & Main Actions */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-black text-white">Ngân hàng Câu hỏi Di truyền học 9</h3>
+                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold shadow-xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Đồng bộ Cloud Firestore
                   </span>
                 </div>
-
-                <p className="text-xs font-semibold text-white mb-2">{q.question}</p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-3">
-                  {q.options.map(opt => (
-                    <div
-                      key={opt.id}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-                        opt.id === q.correctAnswer
-                          ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-800/60'
-                          : 'bg-slate-950 text-slate-300 border border-slate-800/80'
-                      }`}
-                    >
-                      <span className="font-mono font-bold mr-1.5">{opt.id.toUpperCase()}:</span>
-                      <span>{opt.text}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                  <p className="text-[11px] text-slate-400 italic line-clamp-1 max-w-lg">
-                    Giải thích: {q.explanation}
-                  </p>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleDeleteQuestion(q.id)}
-                      className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/50"
-                      title="Xóa câu hỏi"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-
-                    {q.status === 'draft' && (
-                      <button
-                        onClick={() => handleApproveAndPublish(q.id)}
-                        className="px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-500 flex items-center gap-1 shadow-sm"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Duyệt &amp; Xuất bản</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <p className="text-xs text-slate-300">
+                  Nguồn câu hỏi gốc cho toàn bộ bài học, luyện tập và thi đua của học sinh. Lưu trữ trên Cloud để học sinh làm online ở bất kỳ máy tính/điện thoại nào.
+                </p>
               </div>
-            ))}
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={handleOpenAddQuestion}
+                  className="px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 flex items-center gap-1.5 shadow-md shadow-emerald-900/30 transition-all cursor-pointer ring-1 ring-white/20"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>+ Thêm câu hỏi mới</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('ai_generator')}
+                  className="px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 flex items-center gap-1.5 shadow-md shadow-cyan-900/30 transition-all cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Tạo thêm bằng AI</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 text-xs">
+              {/* Search input */}
+              <div className="lg:col-span-4 relative">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={qSearchQuery}
+                  onChange={e => setQSearchQuery(e.target.value)}
+                  placeholder="Tìm kiếm nội dung, từ khóa, lời giải..."
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"
+                />
+                {qSearchQuery && (
+                  <button
+                    onClick={() => setQSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Topic selector */}
+              <div className="lg:col-span-3">
+                <select
+                  value={qTopicFilter}
+                  onChange={e => setQTopicFilter(e.target.value)}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white focus:border-purple-500 focus:outline-none font-medium"
+                >
+                  <option value="all">📚 Tất cả chuyên đề ({questions.length})</option>
+                  {GENETICS_TOPICS.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.titleVi} ({questions.filter(q => q.topicId === t.id).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Type selector */}
+              <div className="lg:col-span-2">
+                <select
+                  value={qTypeFilter}
+                  onChange={e => setQTypeFilter(e.target.value)}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white focus:border-purple-500 focus:outline-none font-medium"
+                >
+                  <option value="all">Dạng: Tất cả</option>
+                  <option value="mcq">Trắc nghiệm 4 đáp án</option>
+                  <option value="true_false">Đúng / Sai</option>
+                </select>
+              </div>
+
+              {/* Difficulty selector */}
+              <div className="lg:col-span-2">
+                <select
+                  value={qDifficultyFilter}
+                  onChange={e => setQDifficultyFilter(e.target.value)}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white focus:border-purple-500 focus:outline-none font-medium"
+                >
+                  <option value="all">Độ khó: Tất cả</option>
+                  <option value="easy">Dễ (Nhận biết)</option>
+                  <option value="medium">Trung bình (Thông hiểu)</option>
+                  <option value="hard">Khó (Vận dụng)</option>
+                </select>
+              </div>
+
+              {/* Status selector */}
+              <div className="lg:col-span-1">
+                <select
+                  value={qStatusFilter}
+                  onChange={e => setQStatusFilter(e.target.value)}
+                  className="w-full py-2 px-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white focus:border-purple-500 focus:outline-none font-medium"
+                >
+                  <option value="all">Tất cả</option>
+                  <option value="published">Đã xuất bản</option>
+                  <option value="draft">Bản nháp</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Quick Summary Pill Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-slate-400 font-mono">
+              <div className="flex items-center gap-3">
+                <span>Hiển thị: <strong className="text-white">{filteredQuestions.length}</strong> / {questions.length} câu</span>
+                <span>·</span>
+                <span className="text-emerald-400">Đã xuất bản: {questions.filter(q => q.status === 'published').length}</span>
+                <span>·</span>
+                <span className="text-amber-400">Bản nháp: {questions.filter(q => q.status === 'draft').length}</span>
+              </div>
+              {(qTopicFilter !== 'all' || qTypeFilter !== 'all' || qStatusFilter !== 'all' || qDifficultyFilter !== 'all' || qSearchQuery) && (
+                <button
+                  onClick={() => {
+                    setQTopicFilter('all');
+                    setQTypeFilter('all');
+                    setQStatusFilter('all');
+                    setQDifficultyFilter('all');
+                    setQSearchQuery('');
+                  }}
+                  className="text-cyan-400 hover:underline flex items-center gap-1 font-semibold"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Đặt lại bộ lọc
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Question List */}
+          {filteredQuestions.length === 0 ? (
+            <div className="p-12 text-center rounded-2xl bg-slate-900/50 border border-slate-800 space-y-3">
+              <AlertCircle className="h-10 w-10 text-slate-500 mx-auto" />
+              <p className="text-sm font-bold text-slate-300">Không tìm thấy câu hỏi nào phù hợp với bộ lọc</p>
+              <button
+                onClick={handleOpenAddQuestion}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold"
+              >
+                + Thêm câu hỏi mới vào chuyên đề này
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {filteredQuestions.map((q, idx) => {
+                const topicObj = GENETICS_TOPICS.find(t => t.id === q.topicId);
+                return (
+                  <div
+                    key={q.id}
+                    className={`p-5 rounded-2xl bg-slate-900 border transition-all shadow-md ${
+                      q.status === 'draft'
+                        ? 'border-amber-600/50 bg-amber-950/15'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {/* Card Top Meta */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs mb-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-slate-400 font-bold px-2 py-0.5 bg-slate-950 rounded-md border border-slate-800">
+                          #{idx + 1}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-950 text-sky-300 border border-sky-800/80">
+                          {topicObj ? topicObj.titleVi : q.topicId.toUpperCase()}
+                        </span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            q.status === 'draft'
+                              ? 'bg-amber-950 text-amber-300 border border-amber-700'
+                              : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                          }`}
+                        >
+                          {q.status === 'draft' ? 'BẢN NHÁP (DRAFT)' : 'ĐÃ XUẤT BẢN'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-800/60">
+                          {q.type === 'mcq' ? 'Trắc nghiệm 4 lựa chọn' : 'Đúng / Sai'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-slate-400 text-[11px] font-mono">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          q.difficulty === 'easy' ? 'text-emerald-400 bg-emerald-950/50 border border-emerald-800/60' :
+                          q.difficulty === 'hard' ? 'text-rose-400 bg-rose-950/50 border border-rose-800/60' :
+                          'text-amber-400 bg-amber-950/50 border border-amber-800/60'
+                        }`}>
+                          Độ khó: {q.difficulty === 'easy' ? 'Dễ' : q.difficulty === 'hard' ? 'Khó' : 'Trung bình'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Question Prompt */}
+                    <p className="text-sm font-bold text-white mb-3 leading-relaxed">
+                      {q.question}
+                    </p>
+
+                    {/* Options Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3.5">
+                      {q.options.map(opt => {
+                        const isCorrect =
+                          opt.id === q.correctAnswer ||
+                          opt.isCorrect ||
+                          (q.type === 'true_false' && ((q.correctAnswer === 'opt_true' && opt.id === 'opt_true') || (q.correctAnswer === 'opt_false' && opt.id === 'opt_false')));
+                        return (
+                          <div
+                            key={opt.id}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-medium flex items-center justify-between gap-2 border transition-all ${
+                              isCorrect
+                                ? 'bg-emerald-950/70 text-emerald-200 border-emerald-600 font-bold shadow-xs'
+                                : 'bg-slate-950/90 text-slate-300 border-slate-800/90'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-slate-400">{opt.id.replace('opt_', '').toUpperCase()}:</span>
+                              <span>{opt.text}</span>
+                            </div>
+                            {isCorrect && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 whitespace-nowrap">
+                                ✓ ĐÁP ÁN ĐÚNG
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Card Footer: Explanation & Actions */}
+                    <div className="pt-3 border-t border-slate-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="text-[11px] text-slate-400 max-w-2xl leading-relaxed">
+                        <strong className="text-slate-300">Lời giải chi tiết:</strong> {q.explanation}
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {q.status === 'draft' && (
+                          <button
+                            onClick={() => handleApproveAndPublish(q.id)}
+                            className="px-3 py-1.5 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-500 flex items-center gap-1 shadow-sm transition-all"
+                            title="Xuất bản để học sinh làm online"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Duyệt &amp; Xuất bản</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleOpenEditQuestion(q)}
+                          className="px-3 py-1.5 rounded-xl font-bold text-xs text-white bg-slate-800 hover:bg-slate-700 hover:text-cyan-300 border border-slate-700 flex items-center gap-1.5 transition-all"
+                          title="Chỉnh sửa nội dung hoặc đáp án"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>Sửa câu</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          className="p-2 rounded-xl text-rose-400 hover:text-white hover:bg-rose-900/60 border border-slate-800 hover:border-rose-700 transition-all"
+                          title="Xóa câu hỏi khỏi Ngân hàng"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1462,6 +1861,234 @@ export const TeacherDashboard: React.FC = () => {
                 Duyệt &amp; Xuất bản ngay
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Question Modal */}
+      {isQuestionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-900 border-2 border-slate-700 rounded-3xl p-6 shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-purple-400" />
+                  <span>{editingQuestionId ? 'Chỉnh sửa Câu hỏi Ngân hàng' : 'Thêm Câu hỏi Mới vào Ngân hàng'}</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Tự động đồng bộ lên Cloud Firestore để học sinh làm bài tập online trên mọi thiết bị.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuestionModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuestionForm} className="space-y-4 text-xs">
+              {/* Row 1: Topic & Type */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">
+                    Chuyên đề Di truyền học *
+                  </label>
+                  <select
+                    value={formTopicId}
+                    onChange={e => setFormTopicId(e.target.value)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-semibold focus:border-purple-500 focus:outline-none"
+                  >
+                    {GENETICS_TOPICS.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.titleVi}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">
+                    Dạng câu hỏi *
+                  </label>
+                  <select
+                    value={formQuestionType}
+                    onChange={e => setFormQuestionType(e.target.value as QuestionType)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-semibold focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="mcq">Trắc nghiệm 4 lựa chọn (A, B, C, D)</option>
+                    <option value="true_false">Nhận định Đúng / Sai</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 2: Difficulty & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">
+                    Độ khó
+                  </label>
+                  <select
+                    value={formDifficulty}
+                    onChange={e => setFormDifficulty(e.target.value as QuestionDifficulty)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-semibold focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="easy">Dễ (Nhận biết)</option>
+                    <option value="medium">Trung bình (Thông hiểu)</option>
+                    <option value="hard">Khó (Vận dụng / Vận dụng cao)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">
+                    Trạng thái xuất bản
+                  </label>
+                  <select
+                    value={formStatus}
+                    onChange={e => setFormStatus(e.target.value as QuestionStatus)}
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-semibold focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="published">Xuất bản ngay (Học sinh làm được ngay)</option>
+                    <option value="draft">Lưu bản nháp (Giáo viên duyệt sau)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Question Prompt */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  Nội dung câu hỏi *
+                </label>
+                <textarea
+                  value={formPrompt}
+                  onChange={e => setFormPrompt(e.target.value)}
+                  placeholder="Nhập câu hỏi sinh học..."
+                  rows={3}
+                  required
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs leading-relaxed focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Options */}
+              {formQuestionType === 'mcq' ? (
+                <div className="space-y-2">
+                  <label className="block text-slate-300 font-bold">
+                    4 Phương án trả lời (Tích chọn tròn để đặt làm đáp án đúng) *
+                  </label>
+                  {['A', 'B', 'C', 'D'].map((letter, idx) => (
+                    <div
+                      key={letter}
+                      className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all ${
+                        formCorrectIndex === idx
+                          ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500/40'
+                          : 'bg-slate-950 border-slate-800'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="correctAnswerOption"
+                        id={`opt_radio_${idx}`}
+                        checked={formCorrectIndex === idx}
+                        onChange={() => setFormCorrectIndex(idx)}
+                        className="h-4 w-4 text-emerald-600 focus:ring-0 cursor-pointer"
+                      />
+                      <label htmlFor={`opt_radio_${idx}`} className="font-mono font-bold text-slate-300 cursor-pointer w-6">
+                        {letter}.
+                      </label>
+                      <input
+                        type="text"
+                        value={formOptions[idx]}
+                        onChange={e => {
+                          const next = [...formOptions];
+                          next[idx] = e.target.value;
+                          setFormOptions(next);
+                        }}
+                        placeholder={`Nhập phương án ${letter}...`}
+                        required
+                        className="flex-1 py-1.5 px-3 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:border-emerald-500 focus:outline-none"
+                      />
+                      {formCorrectIndex === idx && (
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800 shrink-0">
+                          ✓ ĐÚNG
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-slate-300 font-bold">
+                    Đáp án đúng cho nhận định trên *
+                  </label>
+                  <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-emerald-400">
+                      <input
+                        type="radio"
+                        name="tfAnswer"
+                        checked={formTrueFalseAnswer === true}
+                        onChange={() => setFormTrueFalseAnswer(true)}
+                        className="h-4 w-4 text-emerald-600 focus:ring-0"
+                      />
+                      <span>ĐÚNG (Chính xác)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-rose-400">
+                      <input
+                        type="radio"
+                        name="tfAnswer"
+                        checked={formTrueFalseAnswer === false}
+                        onChange={() => setFormTrueFalseAnswer(false)}
+                        className="h-4 w-4 text-rose-600 focus:ring-0"
+                      />
+                      <span>SAI (Không chính xác)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Explanation */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  Lời giải chi tiết &amp; Hướng dẫn (Hiển thị khi học sinh nộp bài)
+                </label>
+                <textarea
+                  value={formExplanation}
+                  onChange={e => setFormExplanation(e.target.value)}
+                  placeholder="Giải thích cơ chế di truyền hoặc lý do vì sao đáp án đúng..."
+                  rows={2}
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs leading-relaxed focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestionModalOpen(false)}
+                  className="px-4 py-2 font-bold text-slate-400 hover:text-white text-xs transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingQuestion}
+                  className="px-5 py-2.5 rounded-xl font-black text-white bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-md shadow-purple-900/30 flex items-center gap-2 text-xs transition-all disabled:opacity-50"
+                >
+                  {isSavingQuestion ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Đang lưu lên Cloud Firestore...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      <span>{editingQuestionId ? 'Cập nhật câu hỏi lên Cloud' : 'Lưu câu hỏi mới vào Ngân hàng'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

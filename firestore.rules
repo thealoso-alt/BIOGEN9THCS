@@ -9,10 +9,7 @@ service cloud.firestore {
     // Shared Topic Videos: Any student or teacher can read
     match /topic_videos/{videoId} {
       allow read: if true;
-      allow create, update: if request.resource.data.title is string
-                            && request.resource.data.topicId is string
-                            && request.resource.data.shareUrl is string;
-      allow delete: if true;
+      allow create, update, delete: if true;
     }
 
     // Users and progress
@@ -23,6 +20,11 @@ service cloud.firestore {
       }
     }
 
+    // Accounts for cross-device student and teacher login
+    match /accounts/{accountId} {
+      allow read, write: if true;
+    }
+
     // Classes
     match /classes/{classId} {
       allow read, write: if true;
@@ -30,6 +32,11 @@ service cloud.firestore {
 
     // Questions bank
     match /questions/{questionId} {
+      allow read, write: if true;
+    }
+
+    // Customized Topic Knowledge Base edited by teachers
+    match /topic_knowledge/{topicId} {
       allow read, write: if true;
     }
   }
