@@ -57,8 +57,15 @@ export const TopicDetailPage: React.FC = () => {
   const { selectedTopicId, selectedTab, navigate } = useNavigation();
   const { userProgress, updateProgress, user } = useAuth();
 
-  // Active sub-tab (Default to 'interactive' or 'knowledge' - sleek compact tabs)
-  const [activeTab, setActiveTab] = useState<string>(selectedTab || 'interactive');
+  const VALID_TABS = ['interactive', 'knowledge', 'english_bio', 'materials', 'practice', 'challenge', 'assessment'];
+
+  // Active sub-tab (Default to 'interactive' - 1. Mô hình 3D)
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (selectedTab && VALID_TABS.includes(selectedTab) && selectedTab !== 'explore') {
+      return selectedTab;
+    }
+    return 'interactive';
+  });
 
   const topic = GENETICS_TOPICS.find(t => t.id === selectedTopicId) || GENETICS_TOPICS[0];
   const topicTerms = ENGLISH_BIO_TERMS.filter(term => term.topicId === topic.id);
@@ -75,14 +82,19 @@ export const TopicDetailPage: React.FC = () => {
   const [practiceFinished, setPracticeFinished] = useState(false);
   const [practiceScore, setPracticeScore] = useState(0);
 
-  // When selected topic changes, generate a new randomized 10-question set and reset state
+  // When selected topic changes, ensure 3D Model is displayed first, generate randomized questions and reset state
   useEffect(() => {
+    if (selectedTab && VALID_TABS.includes(selectedTab) && selectedTab !== 'explore') {
+      setActiveTab(selectedTab);
+    } else {
+      setActiveTab('interactive');
+    }
     setPracticeQuestions(getRandomizedPracticeQuestionsForTopic(topic.id));
     setUserAnswers({});
     setSubmittedQuestions({});
     setPracticeFinished(false);
     setPracticeScore(0);
-  }, [topic.id]);
+  }, [topic.id, selectedTab]);
 
   // Track actual learning activities for accurate progress calculation
   useEffect(() => {
@@ -411,7 +423,7 @@ export const TopicDetailPage: React.FC = () => {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-3.5 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center gap-1.5 text-xs ${
-                activeTab === tab.key
+                (activeTab === tab.key || (!VALID_TABS.includes(activeTab) && tab.key === 'interactive'))
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
@@ -423,8 +435,8 @@ export const TopicDetailPage: React.FC = () => {
         })}
       </div>
 
-      {/* TAB 1: DEDICATED SPECIALIZED TOPIC MODEL */}
-      {activeTab === 'interactive' && (
+      {/* TAB 1: DEDICATED SPECIALIZED TOPIC MODEL (Guaranteed first page) */}
+      {(activeTab === 'interactive' || !VALID_TABS.includes(activeTab)) && (
         <div className="space-y-4">
           <TopicModelRenderer topicId={topic.id} />
         </div>

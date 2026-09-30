@@ -29,7 +29,7 @@ const NavigationContext = createContext<NavigationContextType | undefined>(undef
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentView, setCurrentView] = useState<AppView>('landing');
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>('dna');
-  const [selectedTab, setSelectedTab] = useState<string | undefined>('explore');
+  const [selectedTab, setSelectedTab] = useState<string | undefined>('interactive');
   const [isJoinClassOpen, setIsJoinClassOpen] = useState(false);
 
   // Sync hash routing for browser back/forward and bookmarking
@@ -59,7 +59,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setCurrentView(view);
         if (view === 'topic_detail' && parts[1]) {
           setSelectedTopicId(parts[1]);
-          if (parts[2]) setSelectedTab(parts[2]);
+          if (parts[2]) {
+            setSelectedTab(parts[2] === 'explore' ? 'interactive' : parts[2]);
+          } else {
+            setSelectedTab('interactive');
+          }
         }
       }
     };
@@ -75,20 +79,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setSelectedTopicId(params.topicId);
     }
     if (params?.tab) {
-      setSelectedTab(params.tab);
+      setSelectedTab(params.tab === 'explore' ? 'interactive' : params.tab);
     }
     let newHash: string = view;
     if (view === 'topic_detail' && (params?.topicId || selectedTopicId)) {
-      newHash = `topic_detail/${params?.topicId || selectedTopicId}${params?.tab ? `/${params.tab}` : ''}`;
+      const effectiveTab = (params?.tab || selectedTab || 'interactive') === 'explore' ? 'interactive' : (params?.tab || selectedTab || 'interactive');
+      newHash = `topic_detail/${params?.topicId || selectedTopicId}/${effectiveTab}`;
     }
     window.location.hash = `#/${newHash}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const openTopic = (topicId: string, tab: string = 'explore') => {
+  const openTopic = (topicId: string, tab: string = 'interactive') => {
+    const targetTab = tab === 'explore' ? 'interactive' : tab;
     setSelectedTopicId(topicId);
-    setSelectedTab(tab);
-    navigate('topic_detail', { topicId, tab });
+    setSelectedTab(targetTab);
+    navigate('topic_detail', { topicId, tab: targetTab });
   };
 
   const openJoinClassModal = () => setIsJoinClassOpen(true);
