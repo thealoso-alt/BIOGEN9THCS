@@ -79,6 +79,28 @@
         "lastStudiedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "topicId", "status", "progressPercent", "lastStudiedAt"]
+    },
+    "TopicVideo": {
+      "title": "TopicVideo",
+      "description": "Shared video lectures uploaded or linked by teachers via Google Drive or YouTube.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "topicId": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 255 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "shareUrl": { "type": "string", "maxLength": 1000 },
+        "embedUrl": { "type": "string", "maxLength": 1000 },
+        "provider": { "type": "string", "enum": ["gdrive", "youtube", "direct"] },
+        "durationMinutes": { "type": "number" },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "gradeLevel": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "viewsCount": { "type": "number" },
+        "keyTimestamps": { "type": "array" }
+      },
+      "required": ["topicId", "title", "shareUrl", "embedUrl", "provider", "authorName", "createdAt"]
     }
   },
   "firestore": {
@@ -97,6 +119,10 @@
     "/users/{userId}/progress/{topicId}": {
       "schema": { "$ref": "#/entities/TopicProgress" },
       "description": "Student progress records per topic."
+    },
+    "/topic_videos/{videoId}": {
+      "schema": { "$ref": "#/entities/TopicVideo" },
+      "description": "Shared learning videos linked by teachers from Google Drive or YouTube."
     }
   }
 }

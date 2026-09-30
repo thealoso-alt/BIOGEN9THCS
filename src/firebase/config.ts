@@ -1,13 +1,41 @@
-// Firebase Configuration & Service Initializer
-// Phase 1: Structural Setup & Prepared SDK handles
-// Phase 2: Live Provisioning via set_up_firebase tool
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import firebaseConfigJson from '../../firebase-applet-config.json';
 
-export interface FirebaseClientStatus {
-  isConfigured: boolean;
-  projectId?: string;
-  storageBucket?: string;
+export const firebaseConfig = {
+  apiKey: firebaseConfigJson.apiKey,
+  authDomain: firebaseConfigJson.authDomain,
+  projectId: firebaseConfigJson.projectId,
+  storageBucket: firebaseConfigJson.storageBucket,
+  messagingSenderId: firebaseConfigJson.messagingSenderId,
+  appId: firebaseConfigJson.appId,
+  measurementId: firebaseConfigJson.measurementId || undefined
+};
+
+// Initialize Firebase App
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// Initialize Firestore with specific database ID if provided
+export const db = firebaseConfigJson.firestoreDatabaseId
+  ? getFirestore(app, firebaseConfigJson.firestoreDatabaseId)
+  : getFirestore(app);
+
+// Initialize Auth
+export const auth = getAuth(app);
+
+export const isFirebaseReady = Boolean(firebaseConfig.projectId && firebaseConfig.apiKey);
+
+// Validate Connection to Firestore on startup
+async function testConnection() {
+  if (!isFirebaseReady) return;
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Firebase client offline warning:", error.message);
+    }
+  }
 }
 
-export const firebaseStatus: FirebaseClientStatus = {
-  isConfigured: false,
-};
+testConnection();

@@ -18,8 +18,14 @@ import {
   Eye,
   CheckCircle2,
   ChevronRight,
-  Maximize2
+  Maximize2,
+  Cloud,
 } from 'lucide-react';
+import {
+  subscribeToTopicVideos,
+  saveVideoToCloud,
+  deleteVideoFromCloud
+} from '../../firebase/videoService';
 
 export interface TopicVideoItem {
   id: string;
@@ -302,6 +308,40 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
     }
   }, [videos, storageKey]);
 
+  // Cloud Database state
+  const [cloudSynced, setCloudSynced] = useState<boolean>(true);
+  const [isSavingCloud, setIsSavingCloud] = useState<boolean>(false);
+
+  // Real-time synchronization with Firebase Firestore Cloud Database
+  // When teacher adds a video, all students on any device / Vercel link receive it immediately
+  useEffect(() => {
+    const defaultList = DEFAULT_TOPIC_VIDEOS[topicId] || [];
+
+    const unsubscribe = subscribeToTopicVideos(
+      topicId,
+      (cloudVideos) => {
+        if (cloudVideos && cloudVideos.length > 0) {
+          // Merge cloud videos with default presets (cloud videos take precedence)
+          const cloudIds = new Set(cloudVideos.map(v => v.id));
+          const merged = [
+            ...cloudVideos,
+            ...defaultList.filter(v => !cloudIds.has(v.id))
+          ];
+          setVideos(merged);
+        }
+        setCloudSynced(true);
+      },
+      (error) => {
+        console.warn('Real-time cloud sync notice, fallback to local storage:', error);
+        setCloudSynced(false);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [topicId]);
+
   // Active video player modal state
   const [activeVideo, setActiveVideo] = useState<TopicVideoItem | null>(null);
 
@@ -340,7 +380,7 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
     setIsAddModalOpen(true);
   };
 
-  const handleSaveVideo = (e: React.FormEvent) => {
+  const handleSaveVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!parsedPreview || !parsedPreview.isValid) {
       alert('Vui lòng nhập đường liên kết video Google Drive hoặc YouTube hợp lệ!');
@@ -381,15 +421,32 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
       isCustom: true
     };
 
-    setVideos(prev => [newVideo, ...prev]);
+    setIsSavingCloud(true);
+    // 1. Optimistic local update
+    setVideos(prev => [newVideo, ...prev.filter(v => v.id !== newVideo.id)]);
     setIsAddModalOpen(false);
+
+    // 2. Persist to Firestore Cloud Database (syncs across all devices and Vercel)
+    try {
+      await saveVideoToCloud(newVideo);
+      setCloudSynced(true);
+    } catch (err) {
+      console.warn('Saved locally, cloud sync pending:', err);
+    } finally {
+      setIsSavingCloud(false);
+    }
   };
 
-  const handleDeleteVideo = (id: string, title: string) => {
+  const handleDeleteVideo = async (id: string, title: string) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa video "${title}" khỏi Kho học liệu không?`)) {
       setVideos(prev => prev.filter(v => v.id !== id));
       if (activeVideo?.id === id) {
         setActiveVideo(null);
+      }
+      try {
+        await deleteVideoFromCloud(id);
+      } catch (err) {
+        console.warn('Could not delete from cloud:', err);
       }
     }
   };
@@ -409,10 +466,14 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
             <div className="p-2 rounded-2xl bg-sky-500 text-white shadow-md">
               <Video className="h-5 w-5" />
             </div>
-            <h3 className="text-base sm:text-lg font-black tracking-wide flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-black tracking-wide flex flex-wrap items-center gap-2">
               <span>Video Bài Giảng Điện Tử (Google Drive)</span>
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
                 {videos.length} VIDEO SẴN SÀNG
+              </span>
+              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Đồng bộ Cloud Firestore
               </span>
             </h3>
           </div>
@@ -778,17 +839,25 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
             {/* Modal Form */}
             <form onSubmit={handleSaveVideo} className="flex-1 overflow-y-auto space-y-3.5 text-xs pr-1">
               {/* Step Guide Banner */}
-              <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-100 space-y-1.5 text-sky-900">
-                <span className="font-extrabold flex items-center gap-1.5 text-[11px] text-sky-800">
-                  <CheckCircle2 className="h-4 w-4 text-sky-600" />
-                  Hướng dẫn lấy link chia sẻ trên Google Drive:
-                </span>
+              <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-100 space-y-2 text-sky-900">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold flex items-center gap-1.5 text-[11px] text-sky-800">
+                    <CheckCircle2 className="h-4 w-4 text-sky-600" />
+                    Hướng dẫn lấy link chia sẻ trên Google Drive:
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Đồng bộ Cloud Online
+                  </span>
+                </div>
                 <ol className="list-decimal pl-4 space-y-0.5 text-[11px] text-slate-600">
-                  <li>Tải video bài giảng lên Google Drive của thầy/cô.</li>
+                  <li>Tải video bài giảng lên Google Drive của thầy/cô (không tốn dung lượng máy chủ).</li>
                   <li>Chuột phải vào video ➔ chọn <strong>Chia sẻ (Share)</strong>.</li>
                   <li>Chuyển quyền truy cập chung thành: <strong>&quot;Bất kỳ ai có đường liên kết đều có thể xem&quot;</strong>.</li>
                   <li>Bấm <strong>Sao chép đường liên kết</strong> và dán vào ô dưới đây.</li>
                 </ol>
+                <div className="text-[10px] text-sky-700 bg-white/80 p-2 rounded-xl border border-sky-200/60 leading-relaxed">
+                  💡 <strong>Lưu trữ đám mây tự động:</strong> Khi thầy/cô bấm lưu, link được đẩy lên Firebase Cloud Database. Toàn bộ học sinh mở trên link Vercel hay bất kỳ thiết bị nào đều thấy ngay lập tức mà không cần thầy/cô gửi link thủ công!
+                </div>
               </div>
 
               {/* URL Input */}
@@ -918,10 +987,17 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={!parsedPreview || !parsedPreview.isValid}
-                  className="px-5 py-2 font-extrabold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-sky-600/20 text-xs transition-all"
+                  disabled={!parsedPreview || !parsedPreview.isValid || isSavingCloud}
+                  className="px-5 py-2 font-extrabold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-sky-600/20 text-xs transition-all flex items-center gap-1.5"
                 >
-                  Lưu video vào Kho học liệu
+                  {isSavingCloud ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Đang lưu lên Cloud...</span>
+                    </>
+                  ) : (
+                    <span>Lưu video lên Cloud (Đồng bộ mọi thiết bị)</span>
+                  )}
                 </button>
               </div>
             </form>

@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Shared Topic Videos: Any student or teacher can read
+    match /topic_videos/{videoId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.title is string
+                            && request.resource.data.topicId is string
+                            && request.resource.data.shareUrl is string;
+      allow delete: if true;
+    }
+
+    // Users and progress
+    match /users/{userId} {
+      allow read, write: if true;
+      match /progress/{topicId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Classes
+    match /classes/{classId} {
+      allow read, write: if true;
+    }
+
+    // Questions bank
+    match /questions/{questionId} {
+      allow read, write: if true;
+    }
+  }
+}
