@@ -12,6 +12,7 @@ import {
   TrueFalseQuestion,
 } from '../../data/practiceQuestionsData';
 import { TopicModelRenderer } from '../../components/models/TopicModelRenderer';
+import { TopicVideoLibrary } from '../../components/materials/TopicVideoLibrary';
 import {
   Compass,
   Play,
@@ -39,6 +40,7 @@ import {
   TrendingUp,
   UserCheck,
   ShieldCheck,
+  Video,
 } from 'lucide-react';
 
 interface MaterialItem {
@@ -123,6 +125,7 @@ export const TopicDetailPage: React.FC = () => {
     },
   ]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [materialSectionFilter, setMaterialSectionFilter] = useState<'all' | 'videos' | 'docs'>('all');
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadType, setUploadType] = useState<'PDF' | 'DOCX' | 'PPTX' | 'IMAGE'>('PDF');
   const [uploadVisibility, setUploadVisibility] = useState<'PUBLIC' | 'CLASS' | 'PRIVATE'>('CLASS');
@@ -584,54 +587,109 @@ export const TopicDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: LEARNING MATERIALS WITH WORKING UPLOAD BUTTON */}
+      {/* TAB 4: LEARNING MATERIALS & GOOGLE DRIVE VIDEO HUB */}
       {activeTab === 'materials' && (
-        <div className="rounded-3xl border border-sky-100 bg-white p-6 space-y-5 shadow-sm text-slate-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Kho Học Liệu &amp; Đề Cương: {topic.titleVi}</h3>
-              <p className="text-xs text-slate-500">Tài liệu tham khảo, bài giảng điện tử và đề cương ôn tập</p>
-            </div>
-
+        <div className="space-y-6">
+          {/* Sub-navigation filter for Materials */}
+          <div className="flex items-center gap-2 p-1.5 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto text-xs font-bold">
             <button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/25 flex items-center gap-1.5 self-start sm:self-center transition-all"
+              onClick={() => setMaterialSectionFilter('all')}
+              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${
+                materialSectionFilter === 'all'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
             >
-              <Upload className="h-4 w-4" />
-              <span>Tải tài liệu lên</span>
+              <span>Tất cả học liệu</span>
+            </button>
+            <button
+              onClick={() => setMaterialSectionFilter('videos')}
+              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${
+                materialSectionFilter === 'videos'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Video className="h-3.5 w-3.5 text-sky-400" />
+              <span>🎥 Video Bài Giảng (Google Drive)</span>
+            </button>
+            <button
+              onClick={() => setMaterialSectionFilter('docs')}
+              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${
+                materialSectionFilter === 'docs'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5 text-amber-500" />
+              <span>📄 Đề Cương &amp; Tài Liệu Ôn Tập</span>
             </button>
           </div>
 
-          <div className="space-y-3">
-            {materials.map(mat => (
-              <div
-                key={mat.id}
-                className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-white border border-sky-200 text-sky-600 font-bold text-[10px] font-mono shadow-xs">
-                    {mat.type}
-                  </div>
-                  <div>
-                    <span className="font-extrabold text-slate-900 block">{mat.title}</span>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {mat.size} · Đăng bởi {mat.author} · {mat.createdAt} · Quyền: {mat.visibility}
-                    </span>
-                  </div>
+          {/* 1. Video Lecture Library (Google Drive / YouTube) */}
+          {(materialSectionFilter === 'all' || materialSectionFilter === 'videos') && (
+            <TopicVideoLibrary
+              topicId={topic.id}
+              topicTitle={topic.titleVi}
+              userRole={user?.role}
+              userName={user?.fullName}
+              onNavigateTo3D={() => setActiveTab('interactive')}
+            />
+          )}
+
+          {/* 2. Documents & Outlines (PDF, Word, PPTX) */}
+          {(materialSectionFilter === 'all' || materialSectionFilter === 'docs') && (
+            <div className="rounded-3xl border border-sky-100 bg-white p-6 space-y-5 shadow-sm text-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-amber-500" />
+                    <span>Tài Liệu Đề Cương &amp; Bài Tập: {topic.titleVi}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Tài liệu tham khảo, bài giảng PDF/Word và phiếu bài tập ôn thi</p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => alert(`Bắt đầu tải tệp "${mat.title}" (${mat.size})...`)}
-                    className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-700 font-bold flex items-center gap-1 shadow-xs"
-                  >
-                    <Download className="h-3.5 w-3.5 text-sky-600" />
-                    <span>Tải về</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/25 flex items-center gap-1.5 self-start sm:self-center transition-all"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Tải tài liệu lên</span>
+                </button>
               </div>
-            ))}
-          </div>
+
+              <div className="space-y-3">
+                {materials.map(mat => (
+                  <div
+                    key={mat.id}
+                    className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-white border border-sky-200 text-sky-600 font-bold text-[10px] font-mono shadow-xs">
+                        {mat.type}
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-slate-900 block">{mat.title}</span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {mat.size} · Đăng bởi {mat.author} · {mat.createdAt} · Quyền: {mat.visibility}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => alert(`Bắt đầu tải tệp "${mat.title}" (${mat.size})...`)}
+                        className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-700 font-bold flex items-center gap-1 shadow-xs"
+                      >
+                        <Download className="h-3.5 w-3.5 text-sky-600" />
+                        <span>Tải về</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Upload Modal */}
           {isUploadModalOpen && (

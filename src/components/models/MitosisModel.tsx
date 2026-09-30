@@ -9,7 +9,8 @@ import {
   Layers,
   Activity,
   CheckCircle2,
-  Box
+  Box,
+  Scale
 } from 'lucide-react';
 import {
   ModelSubpartDetail,
@@ -20,6 +21,7 @@ import {
   ProcessTimelineScrubber,
   TimelineStageMarker
 } from './ModelInspectionHUD';
+import { MitosisMeiosisComparisonModal } from './MitosisMeiosisComparisonModal';
 
 interface PhaseDetail {
   id: string;
@@ -28,6 +30,13 @@ interface PhaseDetail {
   events: string;
   chromosomesState: string;
   significance: string;
+  stats: {
+    totalN: string;
+    state: string;
+    chromatids: number;
+    centromeres: number;
+    arrangement: string;
+  };
 }
 
 const MITOSIS_TIMELINE_STAGES: TimelineStageMarker[] = [
@@ -54,32 +63,60 @@ const MITOSIS_PHASES: Record<'prophase' | 'metaphase' | 'anaphase' | 'telophase'
     name: 'Prophase',
     nameVi: 'Kỳ Đầu (Prophase)',
     events: 'NST kép bắt đầu co ngắn và cô đặc. Màng nhân và nhân con tiêu biến. Thoi phân bào hình thành nối liền 2 trung thể ở 2 cực tế bào.',
-    chromosomesState: 'NST kép co ngắn, đính ngẫu nhiên với thoi vô sắc',
-    significance: 'Chuẩn bị không gian và cấu trúc để các NST di chuyển dễ dàng mà không bị rối.'
+    chromosomesState: '2n kép = 4 NST kép (8 chromatid, 4 tâm động) - Co ngắn',
+    significance: 'Chuẩn bị không gian và cấu trúc để các NST di chuyển dễ dàng mà không bị rối.',
+    stats: {
+      totalN: '2n = 4',
+      state: 'Kép',
+      chromatids: 8,
+      centromeres: 4,
+      arrangement: 'Rải rác trong nhân, thoi vô sắc đính dần'
+    }
   },
   metaphase: {
     id: 'metaphase',
     name: 'Metaphase',
     nameVi: 'Kỳ Giữa (Metaphase)',
     events: 'Các NST kép co xoắn CỰC ĐẠI, có hình thái và kích thước đặc trưng rõ nét nhất. Tập trung xếp thành MỘT HÀNG trên mặt phẳng xích đạo của thoi phân bào.',
-    chromosomesState: 'Xếp thành 1 hàng tại mặt phẳng xích đạo',
-    significance: 'Thời điểm lý tưởng nhất để quan sát, đếm và lập bản đồ bộ nhiễm sắc thể (karyotype).'
+    chromosomesState: '2n kép = 4 NST kép (8 chromatid, 4 tâm động) - Xếp 1 hàng',
+    significance: 'Thời điểm lý tưởng nhất để quan sát, đếm và lập bản đồ bộ nhiễm sắc thể (karyotype).',
+    stats: {
+      totalN: '2n = 4',
+      state: 'Kép co xoắn cực đại',
+      chromatids: 8,
+      centromeres: 4,
+      arrangement: 'Xếp thành 1 HÀNG tại mặt phẳng xích đạo'
+    }
   },
   anaphase: {
     id: 'anaphase',
     name: 'Anaphase',
     nameVi: 'Kỳ Sau (Anaphase)',
     events: 'Mỗi NST kép tách nhau tại tâm động thành 2 NST đơn riêng biệt. Dưới lực co rút của sợi thoi phân bào, các NST đơn phân ly đều về 2 cực tế bào.',
-    chromosomesState: '2 cromatit tách nhau → 2 NST đơn về 2 cực',
-    significance: 'Đảm bảo mỗi tế bào con tương lai sẽ nhận được một bộ NST đơn bội giống hệt nhau.'
+    chromosomesState: '4n đơn = 8 NST đơn (0 chromatid, 8 tâm động) - Phân ly',
+    significance: 'Đảm bảo mỗi tế bào con tương lai sẽ nhận được một bộ NST đơn bội giống hệt nhau.',
+    stats: {
+      totalN: '4n = 8',
+      state: 'Đơn (tâm động tách đôi)',
+      chromatids: 0,
+      centromeres: 8,
+      arrangement: 'Phân ly dạng chữ V về 2 cực'
+    }
   },
   telophase: {
     id: 'telophase',
     name: 'Telophase',
     nameVi: 'Kỳ Cuối & Phân Chia Tế Bào Chất',
     events: 'Các NST đơn dãn xoắn dài ra dạng sợi mảnh. Màng nhân và nhân con tái lập. Màng tế bào thắt eo ở giữa chia tế bào chất thành 2 tế bào con có bộ NST 2n giống hệt tế bào mẹ.',
-    chromosomesState: 'Hình thành 2 nhân con 2n, tế bào chất phân chia',
-    significance: 'Hoàn tất chu kỳ phân bào, duy trì sự ổn định của bộ NST qua các thế hệ tế bào.'
+    chromosomesState: 'Mỗi nhân con: 2n đơn = 4 NST đơn (0 chromatid, 4 tâm động)',
+    significance: 'Hoàn tất chu kỳ phân bào, duy trì sự ổn định của bộ NST qua các thế hệ tế bào.',
+    stats: {
+      totalN: '2n = 4 (mỗi nhân con)',
+      state: 'Đơn dãn xoắn',
+      chromatids: 0,
+      centromeres: 4,
+      arrangement: 'Tập hợp ở 2 cực, màng nhân tái lập'
+    }
   }
 };
 
@@ -131,11 +168,17 @@ const MITOSIS_PARTS_INFO: Record<string, ModelSubpartDetail> = {
 };
 
 export const MitosisModel: React.FC = () => {
-  const [phase, setPhase] = useState<'prophase' | 'metaphase' | 'anaphase' | 'telophase'>('metaphase');
+  const [progress, setProgress] = useState<number>(38);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [speed, setSpeed] = useState<number>(1);
   const [autoRotate, setAutoRotate] = useState(true);
   const [viewportTheme, setViewportTheme] = useState<'deep' | 'lab'>('deep');
   const [inspectedDetail, setInspectedDetail] = useState<ModelSubpartDetail | null>(null);
   const [hoveredDetail, setHoveredDetail] = useState<ModelSubpartDetail | null>(null);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState<boolean>(false);
+
+  const phase: 'prophase' | 'metaphase' | 'anaphase' | 'telophase' =
+    progress <= 25 ? 'prophase' : progress <= 50 ? 'metaphase' : progress <= 75 ? 'anaphase' : 'telophase';
 
   const mountRef = useRef<HTMLDivElement | null>(null);
   const autoRotateRef = useRef(autoRotate);
@@ -149,6 +192,25 @@ export const MitosisModel: React.FC = () => {
   const modelGroupRef = useRef<THREE.Group | null>(null);
   const isDraggingRef = useRef(false);
   const prevMousePos = useRef({ x: 0, y: 0 });
+
+  // Auto-simulation animation loop
+  useEffect(() => {
+    if (!isPlaying) return;
+    let animId: number;
+    let lastTime = performance.now();
+    const loop = (now: number) => {
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+      setProgress((prev) => {
+        const next = prev + dt * 14 * speed;
+        if (next >= 100) return 0;
+        return next;
+      });
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, speed]);
 
   const handleSelectDetail = (detail: ModelSubpartDetail) => {
     setAutoRotate(false);
@@ -192,7 +254,7 @@ export const MitosisModel: React.FC = () => {
     container.replaceChildren(renderer.domElement);
     rendererRef.current = renderer;
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
     scene.add(ambientLight);
 
     const dirLight1 = new THREE.DirectionalLight(0x38bdf8, 1.2);
@@ -211,7 +273,7 @@ export const MitosisModel: React.FC = () => {
     scene.add(mainGroup);
     modelGroupRef.current = mainGroup;
 
-    buildMitosis3DScene(phase, mainGroup);
+    buildMitosis3DScene(progress, mainGroup);
 
     // Raycaster for 3D interactions
     const raycaster = new THREE.Raycaster();
@@ -222,7 +284,7 @@ export const MitosisModel: React.FC = () => {
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
       if (autoRotateRef.current && modelGroupRef.current && !isDraggingRef.current) {
-        modelGroupRef.current.rotation.y += 0.008;
+        modelGroupRef.current.rotation.y += 0.006;
       }
       renderer.render(scene, camera);
     };
@@ -311,32 +373,90 @@ export const MitosisModel: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
     };
-  }, [phase]);
+  }, []);
 
-  // Build 3D Mitosis Scene with rich interactive UserData
-  const buildMitosis3DScene = (ph: 'prophase' | 'metaphase' | 'anaphase' | 'telophase', group: THREE.Group) => {
+  // Update 3D scene smoothly whenever progress changes (Scrubbing / Animation)
+  useEffect(() => {
+    if (modelGroupRef.current) {
+      buildMitosis3DScene(progress, modelGroupRef.current);
+    }
+  }, [progress]);
+
+  // Build 3D Mitosis Scene continuously according to progress (0% - 100%)
+  const buildMitosis3DScene = (pct: number, group: THREE.Group) => {
     group.clear();
+    const t = Math.max(0, Math.min(100, pct)) / 100; // 0.0 to 1.0
 
-    // 1. Cell Membrane Sphere / Oval
-    const cellMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(12, 32, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.12,
-        roughness: 0.5,
-        wireframe: true
-      })
-    );
-    cellMesh.userData = { partInfo: MITOSIS_PARTS_INFO.cleavage_furrow };
-    group.add(cellMesh);
+    // 1. Cell Membrane & Cleavage Furrow Dynamics
+    if (t < 0.65) {
+      // Single smooth oval cell
+      const cellMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(12, 32, 24),
+        new THREE.MeshStandardMaterial({
+          color: 0x38bdf8,
+          transparent: true,
+          opacity: 0.12,
+          roughness: 0.4,
+          wireframe: true
+        })
+      );
+      cellMesh.userData = { partInfo: MITOSIS_PARTS_INFO.cleavage_furrow };
+      group.add(cellMesh);
+    } else {
+      // Cleavage furrow in cytokinesis: two budding lobes that pinch at the equator (y = 0)
+      const furrowFactor = (t - 0.65) / 0.35; // 0.0 -> 1.0
+      const lobeY = 3.5 + furrowFactor * 3.2;
+      const lobeRadius = 8.5 - furrowFactor * 0.8;
 
-    // 2. Centrioles at Two Poles (Top: y = 9, Bottom: y = -9)
+      const topLobe = new THREE.Mesh(
+        new THREE.SphereGeometry(lobeRadius, 24, 20),
+        new THREE.MeshStandardMaterial({
+          color: 0x38bdf8,
+          transparent: true,
+          opacity: 0.14,
+          wireframe: true
+        })
+      );
+      topLobe.position.set(0, lobeY, 0);
+      topLobe.userData = { partInfo: MITOSIS_PARTS_INFO.cleavage_furrow };
+      group.add(topLobe);
+
+      const botLobe = new THREE.Mesh(
+        new THREE.SphereGeometry(lobeRadius, 24, 20),
+        new THREE.MeshStandardMaterial({
+          color: 0x38bdf8,
+          transparent: true,
+          opacity: 0.14,
+          wireframe: true
+        })
+      );
+      botLobe.position.set(0, -lobeY, 0);
+      botLobe.userData = { partInfo: MITOSIS_PARTS_INFO.cleavage_furrow };
+      group.add(botLobe);
+
+      // Contractile ring at the equator (actin-myosin furrow)
+      const ringRadius = Math.max(0.6, 9.5 * (1 - furrowFactor * 0.9));
+      const furrowRing = new THREE.Mesh(
+        new THREE.TorusGeometry(ringRadius, 0.3, 12, 32),
+        new THREE.MeshStandardMaterial({
+          color: 0x10b981,
+          roughness: 0.2,
+          emissive: 0x059669,
+          emissiveIntensity: 0.4
+        })
+      );
+      furrowRing.rotation.x = Math.PI / 2;
+      furrowRing.userData = { partInfo: MITOSIS_PARTS_INFO.cleavage_furrow };
+      group.add(furrowRing);
+    }
+
+    // 2. Centrioles & Aster Rays at Two Poles
+    const poleY = 9.0;
     const poleTop = new THREE.Mesh(
       new THREE.SphereGeometry(1.2, 16, 16),
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.6 })
     );
-    poleTop.position.set(0, 9, 0);
+    poleTop.position.set(0, poleY, 0);
     poleTop.userData = { partInfo: MITOSIS_PARTS_INFO.centriole };
     group.add(poleTop);
 
@@ -344,99 +464,323 @@ export const MitosisModel: React.FC = () => {
       new THREE.SphereGeometry(1.2, 16, 16),
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2, metalness: 0.6 })
     );
-    poleBot.position.set(0, -9, 0);
+    poleBot.position.set(0, -poleY, 0);
     poleBot.userData = { partInfo: MITOSIS_PARTS_INFO.centriole };
     group.add(poleBot);
 
-    // 3. Spindle Fibers Connecting Poles
-    for (let f = -3; f <= 3; f++) {
-      const fiberPts = [
-        new THREE.Vector3(0, 9, 0),
-        new THREE.Vector3(f * 2.2, 0, Math.sin(f) * 2),
-        new THREE.Vector3(0, -9, 0)
-      ];
-      const fiberMesh = new THREE.Mesh(
-        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(fiberPts), 20, 0.08, 8, false),
-        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.6 })
+    // Glowing aster rays radiating from centrioles
+    for (let r = 0; r < 8; r++) {
+      const angle = (r * Math.PI * 2) / 8;
+      const rayGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, poleY, 0),
+        new THREE.Vector3(Math.cos(angle) * 2.2, poleY + Math.sin(angle) * 1.5, 0)
+      ]);
+      const rayLine = new THREE.Line(
+        rayGeo,
+        new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.4 })
       );
-      fiberMesh.userData = { partInfo: MITOSIS_PARTS_INFO.spindle_fibers };
-      group.add(fiberMesh);
+      group.add(rayLine);
+
+      const rayGeo2 = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -poleY, 0),
+        new THREE.Vector3(Math.cos(angle) * 2.2, -poleY - Math.sin(angle) * 1.5, 0)
+      ]);
+      const rayLine2 = new THREE.Line(
+        rayGeo2,
+        new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.4 })
+      );
+      group.add(rayLine2);
     }
 
-    // 4. Chromosomes in Position depending on phase
-    const chromoCount = 4;
-    for (let i = 0; i < chromoCount; i++) {
-      const x = (i - 1.5) * 2.5;
+    // 3. Prophase Nuclear Envelope (gradually dissolves: 0 -> 25%)
+    if (t < 0.25) {
+      const nucOpacity = 0.35 * (1 - t / 0.25);
+      const nucMembrane = new THREE.Mesh(
+        new THREE.SphereGeometry(6.2, 24, 20),
+        new THREE.MeshStandardMaterial({
+          color: 0x38bdf8,
+          transparent: true,
+          opacity: nucOpacity,
+          roughness: 0.3
+        })
+      );
+      group.add(nucMembrane);
+    }
 
-      if (ph === 'metaphase') {
-        // Aligned single file on equator (y = 0)
-        const cMesh = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.42, 0.42, 3.8, 16),
-          new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0x9333ea : 0xec4899, roughness: 0.3 })
+    // 4. Telophase Daughter Nuclear Envelopes (gradually form: 75% -> 100%)
+    if (t > 0.75) {
+      const nucOpacity = 0.38 * ((t - 0.75) / 0.25);
+      const topNuc = new THREE.Mesh(
+        new THREE.SphereGeometry(4.2, 20, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0x06b6d4,
+          transparent: true,
+          opacity: nucOpacity,
+          roughness: 0.3
+        })
+      );
+      topNuc.position.set(0, 6.2, 0);
+      group.add(topNuc);
+
+      const botNuc = new THREE.Mesh(
+        new THREE.SphereGeometry(4.2, 20, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0x06b6d4,
+          transparent: true,
+          opacity: nucOpacity,
+          roughness: 0.3
+        })
+      );
+      botNuc.position.set(0, -6.2, 0);
+      group.add(botNuc);
+    }
+
+    // 5. Four Chromosome Pairs (2 Large purple, 2 Medium pink)
+    const chromoMetaPositions = [-4.5, -1.5, 1.5, 4.5];
+    const chromoColors = [0x9333ea, 0xec4899, 0x9333ea, 0xec4899];
+    const chromoSizes = [3.6, 2.8, 3.6, 2.8];
+
+    chromoMetaPositions.forEach((xAlign, idx) => {
+      const chromColor = chromoColors[idx];
+      const armLength = chromoSizes[idx];
+
+      if (t <= 0.25) {
+        // --- PROPHASE (0% - 25%): Chromosomes condense from scattered positions toward equator
+        const u = t / 0.25; // 0.0 -> 1.0
+        const startX = (idx - 1.5) * 3.5 + Math.sin(idx * 2) * 1.5;
+        const startY = Math.cos(idx * 1.8) * 3.2;
+        const curX = startX + (xAlign - startX) * u;
+        const curY = startY + (0 - startY) * u;
+        const curRot = (1 - u) * (idx * 0.8 + 0.4);
+
+        // Chromosome X shape
+        const arm1 = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.38, 0.38, armLength, 14),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3 })
         );
-        cMesh.position.set(x, 0, 0);
-        cMesh.rotation.z = Math.PI / 2;
-        cMesh.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
-        group.add(cMesh);
+        arm1.position.set(curX, curY, 0);
+        arm1.rotation.z = Math.PI / 4 + curRot;
+        arm1.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(arm1);
+
+        const arm2 = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.38, 0.38, armLength, 14),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3 })
+        );
+        arm2.position.set(curX, curY, 0);
+        arm2.rotation.z = -Math.PI / 4 + curRot;
+        arm2.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(arm2);
 
         // Centromere dot
         const centDot = new THREE.Mesh(
-          new THREE.SphereGeometry(0.55, 12, 12),
+          new THREE.SphereGeometry(0.5, 12, 12),
           new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.2 })
         );
-        centDot.position.set(x, 0, 0);
+        centDot.position.set(curX, curY, 0);
         centDot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
         group.add(centDot);
 
-      } else if (ph === 'anaphase') {
-        // Sister chromatids separated moving to opposite poles
-        const cTop = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.35, 0.35, 2.6, 16),
-          new THREE.MeshStandardMaterial({ color: 0x9333ea, roughness: 0.3 })
+      } else if (t <= 0.50) {
+        // --- METAPHASE (26% - 50%): Aligned precisely on equator (y = 0), maximum coiling
+        const arm1 = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.42, 0.42, armLength, 16),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3, metalness: 0.2 })
         );
-        cTop.position.set(x, 4.2, 0);
-        cTop.rotation.z = Math.PI / 3;
-        cTop.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
-        group.add(cTop);
+        arm1.position.set(xAlign, 0, 0);
+        arm1.rotation.z = Math.PI / 4;
+        arm1.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(arm1);
 
-        const cBot = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.35, 0.35, 2.6, 16),
-          new THREE.MeshStandardMaterial({ color: 0xec4899, roughness: 0.3 })
+        const arm2 = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.42, 0.42, armLength, 16),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3, metalness: 0.2 })
         );
-        cBot.position.set(x, -4.2, 0);
-        cBot.rotation.z = -Math.PI / 3;
-        cBot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
-        group.add(cBot);
+        arm2.position.set(xAlign, 0, 0);
+        arm2.rotation.z = -Math.PI / 4;
+        arm2.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(arm2);
 
-      } else if (ph === 'telophase') {
-        // Compacted clusters at poles & cleavage furrow
-        const cClusterTop = new THREE.Mesh(
-          new THREE.SphereGeometry(2.2, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0x9333ea, roughness: 0.4 })
+        // Kinetochore / Centromere dot
+        const centDot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.55, 14, 14),
+          new THREE.MeshStandardMaterial({
+            color: 0xfacc15,
+            roughness: 0.2,
+            emissive: 0xeab308,
+            emissiveIntensity: 0.3
+          })
         );
-        cClusterTop.position.set(0, 6.5, 0);
-        cClusterTop.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
-        group.add(cClusterTop);
+        centDot.position.set(xAlign, 0, 0);
+        centDot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(centDot);
 
-        const cClusterBot = new THREE.Mesh(
-          new THREE.SphereGeometry(2.2, 16, 16),
-          new THREE.MeshStandardMaterial({ color: 0xec4899, roughness: 0.4 })
+        // Kinetochore spindle fibers anchored directly to poles
+        const fibTop = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, poleY, 0),
+          new THREE.Vector3(xAlign, 0, 0)
+        ]);
+        group.add(
+          new THREE.Line(
+            fibTop,
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7 })
+          )
         );
-        cClusterBot.position.set(0, -6.5, 0);
-        cClusterBot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
-        group.add(cClusterBot);
+
+        const fibBot = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, -poleY, 0),
+          new THREE.Vector3(xAlign, 0, 0)
+        ]);
+        group.add(
+          new THREE.Line(
+            fibBot,
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7 })
+          )
+        );
+
+      } else if (t <= 0.75) {
+        // --- ANAPHASE (51% - 75%): Centromeres split! V-shaped daughter chromosomes glide to poles
+        const u = (t - 0.50) / 0.25; // 0.0 -> 1.0
+        const yTop = u * 6.0;
+        const yBot = -u * 6.0;
+
+        // Dynamic V-shape trailing arms: vertex at y, arms drag backwards
+        // Top V (Vertex at yTop pointing UP toward pole):
+        const leftArmPtsTop = [
+          new THREE.Vector3(xAlign, yTop, 0),
+          new THREE.Vector3(xAlign - 0.8, yTop - armLength * 0.45, 0)
+        ];
+        const rightArmPtsTop = [
+          new THREE.Vector3(xAlign, yTop, 0),
+          new THREE.Vector3(xAlign + 0.8, yTop - armLength * 0.45, 0)
+        ];
+        const leftMeshTop = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(leftArmPtsTop), 8, 0.36, 10, false),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3 })
+        );
+        leftMeshTop.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(leftMeshTop);
+
+        const rightMeshTop = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rightArmPtsTop), 8, 0.36, 10, false),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3 })
+        );
+        rightMeshTop.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(rightMeshTop);
+
+        // Kinetochore dot at vertex
+        const centTop = new THREE.Mesh(
+          new THREE.SphereGeometry(0.48, 12, 12),
+          new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.2 })
+        );
+        centTop.position.set(xAlign, yTop, 0);
+        centTop.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(centTop);
+
+        // Shortening spindle fiber pulling top kinetochore
+        const fibTop = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, poleY, 0),
+          new THREE.Vector3(xAlign, yTop, 0)
+        ]);
+        group.add(
+          new THREE.Line(
+            fibTop,
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.8 })
+          )
+        );
+
+        // Bottom V (Vertex at yBot pointing DOWN toward pole):
+        const leftArmPtsBot = [
+          new THREE.Vector3(xAlign, yBot, 0),
+          new THREE.Vector3(xAlign - 0.8, yBot + armLength * 0.45, 0)
+        ];
+        const rightArmPtsBot = [
+          new THREE.Vector3(xAlign, yBot, 0),
+          new THREE.Vector3(xAlign + 0.8, yBot + armLength * 0.45, 0)
+        ];
+        const leftMeshBot = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(leftArmPtsBot), 8, 0.36, 10, false),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3 })
+        );
+        leftMeshBot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(leftMeshBot);
+
+        const rightMeshBot = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rightArmPtsBot), 8, 0.36, 10, false),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.3 })
+        );
+        rightMeshBot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(rightMeshBot);
+
+        const centBot = new THREE.Mesh(
+          new THREE.SphereGeometry(0.48, 12, 12),
+          new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.2 })
+        );
+        centBot.position.set(xAlign, yBot, 0);
+        centBot.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(centBot);
+
+        const fibBot = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, -poleY, 0),
+          new THREE.Vector3(xAlign, yBot, 0)
+        ]);
+        group.add(
+          new THREE.Line(
+            fibBot,
+            new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.8 })
+          )
+        );
 
       } else {
-        // Prophase: scattered in center
-        const cMesh = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.4, 0.4, 3.2, 16),
-          new THREE.MeshStandardMaterial({ color: 0x9333ea, roughness: 0.3 })
+        // --- TELOPHASE (76% - 100%): Chromosomes cluster at poles and decondense into chromatin
+        const u = (t - 0.75) / 0.25; // 0.0 -> 1.0
+        const yTop = 6.2 + u * 0.5;
+        const yBot = -6.2 - u * 0.5;
+        const decondenseSpread = 0.5 + u * 1.5;
+
+        // Upper chromosome thread
+        const topPts = [
+          new THREE.Vector3(xAlign * 0.7, yTop - decondenseSpread, Math.sin(idx) * 0.8),
+          new THREE.Vector3(xAlign * 0.7 + Math.sin(idx * 2) * 0.6, yTop, 0),
+          new THREE.Vector3(xAlign * 0.7, yTop + decondenseSpread, Math.cos(idx) * 0.8)
+        ];
+        const topThread = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(topPts), 12, 0.28, 8, false),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.4 })
         );
-        cMesh.position.set(x * 1.5, Math.sin(i) * 2, Math.cos(i) * 2);
-        cMesh.rotation.set(i * 0.4, i * 0.8, 0);
-        cMesh.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
-        group.add(cMesh);
+        topThread.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(topThread);
+
+        // Lower chromosome thread
+        const botPts = [
+          new THREE.Vector3(xAlign * 0.7, yBot - decondenseSpread, Math.sin(idx) * 0.8),
+          new THREE.Vector3(xAlign * 0.7 + Math.sin(idx * 2) * 0.6, yBot, 0),
+          new THREE.Vector3(xAlign * 0.7, yBot + decondenseSpread, Math.cos(idx) * 0.8)
+        ];
+        const botThread = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(botPts), 12, 0.28, 8, false),
+          new THREE.MeshStandardMaterial({ color: chromColor, roughness: 0.4 })
+        );
+        botThread.userData = { partInfo: MITOSIS_PARTS_INFO.chromosomes_meta };
+        group.add(botThread);
       }
+    });
+
+    // 6. Polar non-kinetochore fibers connecting poles through center (in prophase/metaphase/early anaphase)
+    if (t < 0.75) {
+      [-2.5, 2.5].forEach((fx) => {
+        const fiberPts = [
+          new THREE.Vector3(0, poleY, 0),
+          new THREE.Vector3(fx * 2.8, 0, 1.5),
+          new THREE.Vector3(0, -poleY, 0)
+        ];
+        const polarFiber = new THREE.Mesh(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(fiberPts), 16, 0.08, 6, false),
+          new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45 })
+        );
+        polarFiber.userData = { partInfo: MITOSIS_PARTS_INFO.spindle_fibers };
+        group.add(polarFiber);
+      });
     }
   };
 
@@ -455,33 +799,99 @@ export const MitosisModel: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Khảo sát 4 kỳ phân chia nhân: Kỳ đầu ──→ Kỳ giữa ──→ Kỳ sau ──→ Kỳ cuối &amp; Phân chia tế bào chất
+            Kéo thanh trượt tiến trình mượt mà để quan sát liên tục 4 kỳ phân chia: Kỳ đầu ──→ Kỳ giữa ──→ Kỳ sau ──→ Kỳ cuối &amp; Phân chia tế bào chất
           </p>
         </div>
 
-        {/* Phase Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs shrink-0">
-          {[
-            { id: 'prophase', label: '1. Kỳ Đầu' },
-            { id: 'metaphase', label: '2. Kỳ Giữa' },
-            { id: 'anaphase', label: '3. Kỳ Sau' },
-            { id: 'telophase', label: '4. Kỳ Cuối' }
-          ].map(p => (
-            <button
-              key={p.id}
-              onClick={() => {
-                setPhase(p.id as any);
-                setInspectedDetail(null);
-              }}
-              className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
-                phase === p.id
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>{p.label}</span>
-            </button>
-          ))}
+        {/* Action Buttons: Compare Mitosis & Meiosis + Quick Phase Select */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsCompareModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-sky-500/10 via-pink-500/10 to-purple-500/10 hover:from-sky-500/20 hover:to-pink-500/20 border border-sky-300/80 text-sky-700 font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs"
+            title="Mở bảng so sánh chuyên sâu Nguyên phân vs Giảm phân"
+          >
+            <Scale className="h-4 w-4 text-sky-600" />
+            <span>So sánh với Giảm phân</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Phase Quick Jump Switcher */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 rounded-2xl border border-slate-200 text-xs overflow-x-auto scrollbar-none">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 shrink-0">
+          Chuyển nhanh kỳ:
+        </span>
+        {[
+          { id: 'prophase', label: '1. Kỳ Đầu (12%)', pct: 12 },
+          { id: 'metaphase', label: '2. Kỳ Giữa (38%)', pct: 38 },
+          { id: 'anaphase', label: '3. Kỳ Sau (63%)', pct: 63 },
+          { id: 'telophase', label: '4. Kỳ Cuối (88%)', pct: 88 }
+        ].map(p => (
+          <button
+            key={p.id}
+            onClick={() => {
+              setProgress(p.pct);
+              setInspectedDetail(null);
+            }}
+            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 border ${
+              phase === p.id
+                ? 'bg-sky-600 text-white border-sky-500 shadow-xs'
+                : 'bg-white text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            <span>{p.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Interactive Process Timeline Scrubber */}
+      <ProcessTimelineScrubber
+        progress={progress}
+        onChange={(val) => {
+          setProgress(val);
+          setInspectedDetail(null);
+        }}
+        isPlaying={isPlaying}
+        onTogglePlay={() => setIsPlaying(!isPlaying)}
+        speed={speed}
+        onChangeSpeed={setSpeed}
+        stages={MITOSIS_TIMELINE_STAGES}
+        currentEventLabel={getMitosisEventLabel(progress)}
+        accentColor="blue"
+        title="Tiến trình nguyên phân (Mitosis)"
+      />
+
+      {/* Real-time Biological Chromosome HUD Metrics Banner */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 rounded-2xl bg-slate-900 border border-slate-800 text-white text-xs">
+        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
+          <span className="text-[10px] text-sky-400 font-mono block">Kỳ phân bào:</span>
+          <strong className="text-white text-[12px] block truncate">
+            {MITOSIS_PHASES[phase].nameVi}
+          </strong>
+        </div>
+        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
+          <span className="text-[10px] text-sky-400 font-mono block">Số NST:</span>
+          <strong className="text-white text-[12px] block truncate">
+            {MITOSIS_PHASES[phase].stats.totalN}
+          </strong>
+        </div>
+        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
+          <span className="text-[10px] text-amber-400 font-mono block">Trạng thái NST:</span>
+          <strong className="text-amber-300 text-[12px] block truncate">
+            {MITOSIS_PHASES[phase].stats.state}
+          </strong>
+        </div>
+        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5">
+          <span className="text-[10px] text-purple-400 font-mono block">Chromatid:</span>
+          <strong className="text-purple-300 text-[12px] block">
+            {MITOSIS_PHASES[phase].stats.chromatids} sợi
+          </strong>
+        </div>
+        <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-0.5 col-span-2 sm:col-span-1">
+          <span className="text-[10px] text-emerald-400 font-mono block">Tâm động:</span>
+          <strong className="text-emerald-300 text-[12px] block">
+            {MITOSIS_PHASES[phase].stats.centromeres} điểm
+          </strong>
         </div>
       </div>
 
@@ -638,6 +1048,13 @@ export const MitosisModel: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Mitosis vs Meiosis Comparison Modal */}
+      <MitosisMeiosisComparisonModal
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        initialTopic="mitosis"
+      />
     </div>
   );
 };
