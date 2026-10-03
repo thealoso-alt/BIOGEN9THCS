@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { TeacherDashboard } from './pages/teacher/TeacherDashboard';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { KnowledgeMapPage } from './pages/topics/KnowledgeMapPage';
 import { TopicDetailPage } from './pages/topics/TopicDetailPage';
 import { EnglishBioPage } from './pages/english-bio/EnglishBioPage';
@@ -29,6 +30,8 @@ const AppRouter: React.FC = () => {
         return <StudentDashboard />;
       case 'teacher_dashboard':
         return <TeacherDashboard />;
+      case 'admin_dashboard':
+        return <AdminDashboard />;
       case 'knowledge_map':
         return <KnowledgeMapPage />;
       case 'topic_detail':

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole, ClassRoom, StudentAccount, UserAccountCredential } from '../types/auth';
 import { StudentTopicProgress } from '../types/genetics';
-import { DEMO_TEACHER, DEMO_STUDENT, DEMO_CLASSES, DEMO_PROGRESS, INITIAL_ACCOUNTS } from '../data/mockSeedData';
+import { DEMO_CLASSES, DEMO_PROGRESS, INITIAL_ACCOUNTS, DEMO_STUDENT } from '../data/mockSeedData';
 import { createFreshProgress } from '../data/progressUtils';
 import {
   generateStudentUsername,
@@ -12,11 +12,19 @@ import {
 import {
   subscribeToClasses,
   saveClassToCloud,
+  deleteClassFromCloud,
   subscribeToAccounts,
   saveAccountsToCloud,
   saveSingleAccountToCloud,
   deleteAccountFromCloud,
 } from '../firebase/classService';
+import {
+  syncTeacherToGoogleSheet,
+  syncClassToGoogleSheet,
+  syncStudentsToGoogleSheet,
+  syncProgressToGoogleSheet,
+  StudentSheetPayload,
+} from '../services/googleSheetService';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -24,7 +32,7 @@ interface AuthContextType {
   classes: ClassRoom[];
   userProgress: Record<string, StudentTopicProgress>;
   accounts: UserAccountCredential[];
-  login: (identifier: string, pass: string, targetRole: UserRole) => Promise<{ success: boolean; message?: string }>;
+  login: (identifier: string, pass: string, targetRole?: UserRole) => Promise<{ success: boolean; message?: string }>;
   loginAsDemo: (targetRole: UserRole) => void;
   register: (data: {
     fullName: string;
@@ -53,7 +61,36 @@ interface AuthContextType {
   ) => { success: boolean; count: number; createdAccounts: StudentAccount[]; message: string };
   getStudentsByClass: (classId: string) => StudentAccount[];
   updateStudentPassword: (studentUid: string, newPassword: string) => boolean;
-  deleteStudent: (studentUid: string, classId: string) => boolean;
+  deleteStudent: (studentUid: string, classId?: string) => boolean;
+  getAllTeachers: () => UserAccountCredential[];
+  deleteTeacher: (teacherUid: string) => boolean;
+  resetTeacherPassword: (teacherUid: string, newPassword: string) => boolean;
+  deleteClass: (classId: string) => boolean;
+  getAllStudents: () => StudentAccount[];
+}
+
+export function generateUniqueTeacherCode(existingList: Array<{ teacherCode?: string }>): string {
+  const existingSet = new Set(existingList.map(a => a.teacherCode).filter(Boolean));
+  let code = '';
+  let attempts = 0;
+  do {
+    const num = Math.floor(100000 + Math.random() * 900000);
+    code = `GV-${num}`;
+    attempts++;
+  } while (existingSet.has(code) && attempts < 100);
+  return code;
+}
+
+export function generateUniqueStudentCode(existingList: Array<{ studentCode?: string }>): string {
+  const existingSet = new Set(existingList.map(a => a.studentCode).filter(Boolean));
+  let code = '';
+  let attempts = 0;
+  do {
+    const num = Math.floor(100000 + Math.random() * 900000);
+    code = `HS-${num}`;
+    attempts++;
+  } while (existingSet.has(code) && attempts < 100);
+  return code;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,19 +101,41 @@ const LOCAL_STORAGE_KEY_PROGRESS = 'biogen9_progress';
 const LOCAL_STORAGE_KEY_ACCOUNTS = 'biogen9_accounts';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // KHÔNG ĐỂ ĐĂNG NHẬP MẶC ĐỊNH KHI MỚI MỞ LINK: Chỉ giữ lại nếu người dùng đã đăng ký/đăng nhập thật
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_USER);
-      return saved ? JSON.parse(saved) : DEMO_STUDENT;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Strictly filter out any virtual teachers or demo accounts
+        if (
+          parsed &&
+          parsed.uid &&
+          !parsed.uid.includes('teacher_demo') &&
+          !parsed.uid.includes('guest_student') &&
+          parsed.username !== 'teacher_huong' &&
+          parsed.fullName !== 'Cô Nguyễn Thu Hương' &&
+          parsed.fullName?.trim() !== ''
+        ) {
+          return parsed;
+        }
+      }
+      return null;
     } catch {
-      return DEMO_STUDENT;
+      return null;
     }
   });
 
   const [classes, setClasses] = useState<ClassRoom[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_CLASSES);
-      return saved ? JSON.parse(saved) : DEMO_CLASSES;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(c => c.teacherId !== 'teacher_demo_1' && c.teacherId !== 'teacher_huong');
+        }
+      }
+      return DEMO_CLASSES;
     } catch {
       return DEMO_CLASSES;
     }
@@ -88,7 +147,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          // Filter out old fake teacher accounts and ensure studentCode exists
+          const cleaned = parsed
+            .filter(a => a.username !== 'teacher_huong' && a.uid !== 'teacher_demo_1' && a.fullName !== 'Cô Nguyễn Thu Hương')
+            .map((a, idx) => ({
+              ...a,
+              studentCode: a.studentCode || (a.role === 'student' ? `HS-${900001 + idx}` : undefined),
+              teacherCode: a.teacherCode || (a.role === 'teacher' ? `GV-${800001 + idx}` : undefined),
+            }));
+
+          // Always ensure the admin account is present
+          if (!cleaned.some(a => a.username === 'admin')) {
+            const adminAcc = INITIAL_ACCOUNTS.find(a => a.username === 'admin');
+            if (adminAcc) cleaned.unshift(adminAcc);
+          }
+          return cleaned;
         }
       }
       return INITIAL_ACCOUNTS;
@@ -130,13 +203,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubClasses = subscribeToClasses((cloudClasses) => {
       if (cloudClasses && cloudClasses.length > 0) {
-        setClasses(cloudClasses);
+        // Filter out fake classes if any
+        const validClasses = cloudClasses.filter(c => c.teacherId !== 'teacher_demo_1');
+        setClasses(validClasses);
       }
     });
 
     const unsubAccounts = subscribeToAccounts((cloudAccounts) => {
       if (cloudAccounts && cloudAccounts.length > 0) {
-        setAccounts(cloudAccounts);
+        // Filter out fake teacher
+        const validAccounts = cloudAccounts.filter(a => a.username !== 'teacher_huong' && a.uid !== 'teacher_demo_1');
+        setAccounts(validAccounts);
       }
     });
 
@@ -146,20 +223,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const login = async (identifier: string, pass: string, targetRole: UserRole) => {
+  const login = async (identifier: string, pass: string, targetRole?: UserRole) => {
     const trimmed = identifier.trim().toLowerCase();
     const cleanPass = pass.trim();
 
-    // 1. Look up user account in accounts registry
+    // 1. Direct System Administrator Check
+    if (trimmed === 'admin') {
+      if (cleanPass === 'admin') {
+        const adminAcc = accounts.find(a => a.username === 'admin') || INITIAL_ACCOUNTS.find(a => a.username === 'admin');
+        const adminProfile: UserProfile = {
+          uid: adminAcc?.uid || 'admin_root',
+          email: adminAcc?.email || 'admin@biogen9.edu.vn',
+          username: 'admin',
+          fullName: adminAcc?.fullName || 'Quản trị viên Hệ thống',
+          role: 'admin',
+          classIds: [],
+          xp: 9999,
+          level: 99,
+          streakDays: 30,
+          badges: ['badge_dna_explorer', 'badge_gene_explorer', 'badge_rna_master'],
+          createdAt: adminAcc?.createdAt || '2026-09-01T00:00:00.000Z',
+        };
+        setUser(adminProfile);
+        return { success: true };
+      } else {
+        return { success: false, message: 'Mật khẩu quản trị viên không chính xác (mật khẩu: admin).' };
+      }
+    }
+
+    // 2. Look up user account in accounts registry (Real registered accounts only)
     const foundAcc = accounts.find(
       acc =>
-        acc.role === targetRole &&
+        (!targetRole || acc.role === targetRole) &&
         (acc.username.toLowerCase() === trimmed || (acc.email && acc.email.toLowerCase() === trimmed))
     );
 
     if (foundAcc) {
       // Validate password
-      if (foundAcc.password && foundAcc.password !== cleanPass && cleanPass !== '123456') {
+      if (foundAcc.role === 'admin') {
+        if (foundAcc.password && foundAcc.password !== cleanPass && cleanPass !== 'admin') {
+          return { success: false, message: 'Mật khẩu quản trị viên không chính xác.' };
+        }
+      } else if (foundAcc.password && foundAcc.password !== cleanPass && cleanPass !== '123456') {
         return { success: false, message: 'Mật khẩu không chính xác. Vui lòng kiểm tra lại.' };
       }
 
@@ -169,6 +274,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: foundAcc.username,
         fullName: foundAcc.fullName,
         role: foundAcc.role,
+        teacherCode: foundAcc.teacherCode,
+        studentCode: foundAcc.studentCode,
         schoolName: foundAcc.schoolName,
         classIds: foundAcc.classIds,
         currentClassId: foundAcc.currentClassId || foundAcc.classIds[0] || '',
@@ -184,43 +291,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     }
 
-    // 2. Demo fallback checks
     if (targetRole === 'teacher') {
-      if (
-        trimmed === DEMO_TEACHER.username ||
-        trimmed === DEMO_TEACHER.email ||
-        trimmed === 'teacher_huong' ||
-        trimmed.includes('huong')
-      ) {
-        setUser(DEMO_TEACHER);
-        return { success: true };
-      }
       return {
         success: false,
-        message: 'Tài khoản Giáo viên không tồn tại. Thầy/Cô vui lòng bấm "Đăng ký tài khoản mới" để tạo tài khoản.',
+        message: 'Tài khoản Giáo viên không tồn tại. Thầy/Cô vui lòng bấm "Đăng ký" để tạo tài khoản mới.',
       };
-    } else {
-      if (
-        trimmed === DEMO_STUDENT.username ||
-        trimmed === DEMO_STUDENT.email ||
-        trimmed === 'minhanh9a1' ||
-        trimmed.includes('minhanh')
-      ) {
-        setUser(DEMO_STUDENT);
-        return { success: true };
-      }
+    } else if (targetRole === 'student') {
       return {
         success: false,
         message: 'Tài khoản Học sinh không tồn tại. Vui lòng kiểm tra Tên đăng nhập và Mật khẩu do Giáo viên cấp.',
+      };
+    } else {
+      return {
+        success: false,
+        message: 'Tài khoản không tồn tại. Vui lòng kiểm tra lại thông tin đăng nhập.',
       };
     }
   };
 
   const loginAsDemo = (targetRole: UserRole) => {
-    if (targetRole === 'teacher') {
-      setUser(DEMO_TEACHER);
-    } else {
-      setUser(DEMO_STUDENT);
+    if (targetRole === 'student') {
+      setUser({
+        uid: 'guest_student_' + Date.now(),
+        studentCode: 'HS-GUEST',
+        username: 'guest_student',
+        fullName: 'Học sinh Trải nghiệm',
+        role: 'student',
+        classIds: [],
+        xp: 0,
+        level: 1,
+        streakDays: 0,
+        badges: [],
+        createdAt: new Date().toISOString(),
+      });
     }
   };
 
@@ -259,6 +362,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // If teacher registers
     if (data.role === 'teacher') {
+      const teacherCode = generateUniqueTeacherCode(accounts);
       const className = data.initialClassName?.trim() || 'Lớp 9A1';
       const cleanNameSlug = className.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || '9A1';
       const generatedClassCode = `BIO${cleanNameSlug}`;
@@ -270,6 +374,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subject: 'Sinh học 9 (Di truyền học)',
         schoolYear: '2026–2027',
         teacherId: newUid,
+        teacherCode: teacherCode,
         teacherName: data.fullName.trim(),
         studentCount: 0,
         studentIds: [],
@@ -279,9 +384,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       assignedClasses.push(newClass.id);
       setClasses(prev => [newClass, ...prev]);
+      saveClassToCloud(newClass).catch(err => console.warn('Could not save class to cloud:', err));
 
       const newTeacherAcc: UserAccountCredential = {
         uid: newUid,
+        teacherCode: teacherCode,
         fullName: data.fullName.trim(),
         username: cleanUsername,
         password: data.password,
@@ -299,6 +406,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setAccounts(prev => [newTeacherAcc, ...prev]);
+      saveAccountsToCloud([newTeacherAcc]).catch(err => console.warn('Could not save teacher to cloud:', err));
+
+      // Synchronize Teacher & Class to Google Sheet via Webhook
+      syncTeacherToGoogleSheet({
+        teacherCode: teacherCode,
+        fullName: data.fullName.trim(),
+        username: cleanUsername,
+        email: cleanEmail || `${cleanUsername}@thcs.edu.vn`,
+        schoolName: data.schoolName?.trim() || 'Trường THCS',
+        registeredAt: new Date().toISOString(),
+      }).catch(err => console.warn('Could not sync teacher to Google Sheet:', err));
+
+      syncClassToGoogleSheet({
+        classId: newClass.id,
+        classCode: newClass.code,
+        className: newClass.name,
+        subject: newClass.subject,
+        schoolYear: newClass.schoolYear,
+        teacherCode: teacherCode,
+        teacherName: data.fullName.trim(),
+        studentCount: 0,
+        createdAt: newClass.createdAt,
+      }).catch(err => console.warn('Could not sync class to Google Sheet:', err));
 
       const teacherProfile: UserProfile = {
         ...newTeacherAcc,
@@ -308,17 +438,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // If student registers
+    let matchedClass: ClassRoom | undefined;
     if (data.classCode) {
-      const found = classes.find(c => c.code.toUpperCase() === data.classCode?.toUpperCase().trim());
-      if (found) {
-        assignedClasses.push(found.id);
+      matchedClass = classes.find(c => c.code.toUpperCase() === data.classCode?.toUpperCase().trim());
+      if (matchedClass) {
+        assignedClasses.push(matchedClass.id);
       }
     } else {
-      assignedClasses.push('class_9a1');
+      matchedClass = classes[0];
+      if (matchedClass) assignedClasses.push(matchedClass.id);
     }
 
+    const studentCode = generateUniqueStudentCode(accounts);
     const newStudentAcc: UserAccountCredential = {
       uid: newUid,
+      studentCode: studentCode,
       fullName: data.fullName.trim(),
       username: cleanUsername,
       password: data.password,
@@ -326,7 +460,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       schoolName: data.schoolName?.trim(),
       role: 'student',
       classIds: assignedClasses,
-      currentClassId: assignedClasses[0] || 'class_9a1',
+      currentClassId: assignedClasses[0] || '',
       initialPassword: data.password,
       xp: 0,
       level: 1,
@@ -336,6 +470,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setAccounts(prev => [newStudentAcc, ...prev]);
+    saveAccountsToCloud([newStudentAcc]).catch(err => console.warn('Could not save student to cloud:', err));
+
+    // Synchronize Student to Google Sheet via Webhook
+    syncStudentsToGoogleSheet([{
+      studentCode: studentCode,
+      fullName: data.fullName.trim(),
+      username: cleanUsername,
+      password: data.password,
+      classCode: matchedClass?.code || data.classCode || 'BIO9',
+      className: matchedClass?.name || 'Lớp Sinh học',
+      teacherCode: matchedClass?.teacherCode || '',
+      email: cleanEmail || `${cleanUsername}@student.edu.vn`,
+      notes: data.schoolName?.trim() || '',
+      createdAt: new Date().toISOString(),
+    }]).catch(err => console.warn('Could not sync student to Google Sheet:', err));
 
     // Initialize clean progress
     const freshProgress = createFreshProgress();
@@ -355,7 +504,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchRole = (newRole: UserRole) => {
     if (newRole === 'teacher') {
-      setUser(DEMO_TEACHER);
+      const registeredTeacher = accounts.find(a => a.role === 'teacher');
+      if (registeredTeacher) {
+        setUser({ ...registeredTeacher });
+      } else {
+        // Do not auto-set fake teacher
+        setUser(null);
+      }
     } else {
       setUser(DEMO_STUDENT);
     }
@@ -419,18 +574,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { ...prev, xp: newXp, level: newLevel };
       });
     }
+
+    // Ghi nhận tiến độ và kết quả học tập vào Google Sheet (Sheet: KetQuaHocTap)
+    if (user && (partial.practiceScore !== undefined || (xpEarned && xpEarned > 0))) {
+      const assignedClass = classes.find(c => user.classIds?.includes(c.id));
+      syncProgressToGoogleSheet({
+        timestamp: new Date().toISOString(),
+        studentCode: user.studentCode || (user.uid.startsWith('student_') ? `HS-${user.uid.slice(-6)}` : 'HS-GUEST'),
+        fullName: user.fullName || 'Học sinh',
+        username: user.username || 'khach',
+        classCode: assignedClass?.code || 'BIO9',
+        teacherCode: assignedClass?.teacherCode || '',
+        topicId,
+        topicTitle: topicId.toUpperCase(),
+        activityType: 'practice_10_questions',
+        score: partial.practiceScore || 0,
+        maxScore: 100,
+        correctCount: Math.round(((partial.practiceScore || 0) / 100) * 10),
+        totalQuestions: 10,
+        xpEarned,
+      }).catch(err => console.warn('Could not sync progress to Google Sheet:', err));
+    }
   };
 
   const addClass = (newClassData: Omit<ClassRoom, 'id' | 'createdAt' | 'studentCount' | 'studentIds'>) => {
+    const teacherId = user?.uid || newClassData.teacherId || 'teacher';
+    const teacherCode = user?.teacherCode || newClassData.teacherCode || '';
+    const teacherName = user?.fullName || newClassData.teacherName || 'Giáo viên';
+
     const newClass: ClassRoom = {
       ...newClassData,
       id: 'class_' + Date.now(),
+      teacherId,
+      teacherCode,
+      teacherName,
       studentCount: 0,
       studentIds: [],
       createdAt: new Date().toISOString(),
     };
     setClasses(prev => [newClass, ...prev]);
     saveClassToCloud(newClass).catch(err => console.warn('Could not save class to cloud:', err));
+
+    // Đồng bộ lớp học lên Google Sheet (Sheet: LopHoc)
+    syncClassToGoogleSheet({
+      classId: newClass.id,
+      classCode: newClass.code,
+      className: newClass.name,
+      subject: newClass.subject,
+      schoolYear: newClass.schoolYear,
+      teacherCode: newClass.teacherCode || '',
+      teacherName: newClass.teacherName || '',
+      studentCount: 0,
+      createdAt: newClass.createdAt,
+    }).catch(err => console.warn('Could not sync class to Google Sheet:', err));
+
     if (user && user.role === 'teacher') {
       setUser({ ...user, classIds: [...user.classIds, newClass.id], currentClassId: newClass.id });
     }
@@ -503,15 +700,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       existingUsernames.add(candidateUsername.toLowerCase());
 
-      // 2. Generate initial password
+      // 2. Generate guaranteed unique Student Code (Mã HS riêng không trùng)
+      const studentCode = generateUniqueStudentCode([...accounts, ...newAccounts]);
+
+      // 3. Generate initial password
       const password = generateStudentPassword(passwordPattern, fixedPassword);
 
-      // 3. Create student profile & account
+      // 4. Create student profile & account
       const studentUid = `student_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`;
       newStudentUids.push(studentUid);
 
       const newAccount: UserAccountCredential = {
         uid: studentUid,
+        studentCode: studentCode,
         fullName: student.fullName.trim(),
         username: candidateUsername,
         password,
@@ -532,12 +733,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       createdStudentRecords.push({
         uid: studentUid,
+        studentCode: studentCode,
         fullName: student.fullName.trim(),
         username: candidateUsername,
         password,
         classId,
         className: targetClass.name,
         classCode: targetClass.code,
+        teacherId: targetClass.teacherId || user?.uid,
+        teacherCode: targetClass.teacherCode || user?.teacherCode,
         email: newAccount.email,
         notes: student.notes,
         xp: 0,
@@ -546,11 +750,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // 4. Update accounts state and sync to Firestore Cloud Database
+    // 5. Update accounts state and sync to Firestore Cloud Database
     setAccounts(prev => [...newAccounts, ...prev]);
     saveAccountsToCloud(newAccounts).catch(err => console.warn('Could not save accounts to cloud:', err));
 
-    // 5. Update class student list & count and sync to Firestore Cloud Database
+    // 6. Ghi nhận toàn bộ học sinh được cấp tài khoản vào Google Sheet (Sheet: HocSinh)
+    syncStudentsToGoogleSheet(
+      createdStudentRecords.map(s => ({
+        studentCode: s.studentCode || '',
+        fullName: s.fullName,
+        username: s.username,
+        password: s.password,
+        classCode: s.classCode,
+        className: s.className,
+        teacherCode: s.teacherCode || '',
+        email: s.email || '',
+        notes: s.notes || '',
+        createdAt: s.createdAt,
+      }))
+    ).catch(err => console.warn('Could not sync students to Google Sheet:', err));
+
+    // 7. Update class student list & count and sync to Firestore Cloud Database
     const updatedTargetClass = {
       ...targetClass,
       studentCount: targetClass.studentCount + createdStudentRecords.length,
@@ -576,17 +796,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const targetClass = classes.find(c => c.id === classId);
     const className = targetClass?.name || 'Lớp Sinh học';
     const classCode = targetClass?.code || 'BIO9';
+    const teacherId = targetClass?.teacherId || user?.uid;
+    const teacherCode = targetClass?.teacherCode || user?.teacherCode;
 
     return accounts
       .filter(a => a.role === 'student' && a.classIds.includes(classId))
       .map(a => ({
         uid: a.uid,
+        studentCode: a.studentCode || `HS-${a.uid.slice(-6)}`,
         fullName: a.fullName,
         username: a.username,
         password: a.password || a.initialPassword || '123456',
         classId,
         className,
         classCode,
+        teacherId,
+        teacherCode,
         email: a.email,
         notes: a.schoolName,
         xp: a.xp,
@@ -616,34 +841,130 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Removes a student from a class
+   * Removes a student from a class or entirely
    */
-  const deleteStudent = (studentUid: string, classId: string): boolean => {
+  const deleteStudent = (studentUid: string, classId?: string): boolean => {
     setAccounts(prev => prev.filter(acc => acc.uid !== studentUid));
     deleteAccountFromCloud(studentUid).catch(err => console.warn('Could not delete account from cloud:', err));
 
-    const targetClass = classes.find(c => c.id === classId);
-    if (targetClass) {
-      const updatedClass = {
-        ...targetClass,
-        studentCount: Math.max(0, targetClass.studentCount - 1),
-        studentIds: targetClass.studentIds.filter(id => id !== studentUid),
-      };
-      saveClassToCloud(updatedClass).catch(err => console.warn('Could not update class in cloud:', err));
-    }
+    if (classId) {
+      const targetClass = classes.find(c => c.id === classId);
+      if (targetClass) {
+        const updatedClass = {
+          ...targetClass,
+          studentCount: Math.max(0, targetClass.studentCount - 1),
+          studentIds: targetClass.studentIds.filter(id => id !== studentUid),
+        };
+        saveClassToCloud(updatedClass).catch(err => console.warn('Could not update class in cloud:', err));
+      }
 
-    setClasses(prev =>
-      prev.map(c =>
-        c.id === classId
-          ? {
+      setClasses(prev =>
+        prev.map(c =>
+          c.id === classId
+            ? {
+                ...c,
+                studentCount: Math.max(0, c.studentCount - 1),
+                studentIds: c.studentIds.filter(id => id !== studentUid),
+              }
+            : c
+        )
+      );
+    } else {
+      setClasses(prev =>
+        prev.map(c => {
+          if (c.studentIds.includes(studentUid)) {
+            const updated = {
               ...c,
               studentCount: Math.max(0, c.studentCount - 1),
               studentIds: c.studentIds.filter(id => id !== studentUid),
-            }
-          : c
-      )
+            };
+            saveClassToCloud(updated).catch(err => console.warn('Could not update class in cloud:', err));
+            return updated;
+          }
+          return c;
+        })
+      );
+    }
+    return true;
+  };
+
+  /**
+   * Admin: Get all registered teachers
+   */
+  const getAllTeachers = (): UserAccountCredential[] => {
+    return accounts.filter(a => a.role === 'teacher');
+  };
+
+  /**
+   * Admin: Delete teacher account
+   */
+  const deleteTeacher = (teacherUid: string): boolean => {
+    setAccounts(prev => prev.filter(acc => acc.uid !== teacherUid));
+    deleteAccountFromCloud(teacherUid).catch(err => console.warn('Could not delete teacher from cloud:', err));
+    return true;
+  };
+
+  /**
+   * Admin: Reset a teacher's password
+   */
+  const resetTeacherPassword = (teacherUid: string, newPassword: string): boolean => {
+    if (!newPassword || newPassword.trim().length < 4) return false;
+    const cleanPass = newPassword.trim();
+    setAccounts(prev =>
+      prev.map(acc => (acc.uid === teacherUid ? { ...acc, password: cleanPass, initialPassword: cleanPass } : acc))
+    );
+    const target = accounts.find(a => a.uid === teacherUid);
+    if (target) {
+      saveSingleAccountToCloud({ ...target, password: cleanPass, initialPassword: cleanPass }).catch(err =>
+        console.warn('Could not update teacher password in cloud:', err)
+      );
+    }
+    return true;
+  };
+
+  /**
+   * Admin: Delete class across any teacher
+   */
+  const deleteClass = (classId: string): boolean => {
+    setClasses(prev => prev.filter(c => c.id !== classId));
+    deleteClassFromCloud(classId).catch(err => console.warn('Could not delete class from cloud:', err));
+    // Remove classId from accounts
+    setAccounts(prev =>
+      prev.map(acc => ({
+        ...acc,
+        classIds: acc.classIds.filter(id => id !== classId),
+        currentClassId: acc.currentClassId === classId ? '' : acc.currentClassId,
+      }))
     );
     return true;
+  };
+
+  /**
+   * Admin: Get all students across all classes
+   */
+  const getAllStudents = (): StudentAccount[] => {
+    return accounts
+      .filter(a => a.role === 'student')
+      .map(a => {
+        const assignedClass = classes.find(c => a.classIds.includes(c.id));
+        return {
+          uid: a.uid,
+          studentCode: a.studentCode || `HS-${a.uid.slice(-6)}`,
+          fullName: a.fullName,
+          username: a.username,
+          password: a.password || a.initialPassword || '123456',
+          classId: assignedClass?.id || '',
+          className: assignedClass?.name || 'Chưa gán',
+          classCode: assignedClass?.code || '',
+          teacherId: assignedClass?.teacherId,
+          teacherCode: assignedClass?.teacherCode,
+          email: a.email,
+          notes: a.schoolName,
+          xp: a.xp,
+          level: a.level,
+          createdAt: a.createdAt,
+        };
+      });
   };
 
   return (
@@ -653,7 +974,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: user?.role || null,
         classes,
         userProgress,
-        accounts,
+        // Bảo mật thông tin quản trị: Giáo viên và Học sinh hoàn toàn không thấy tài khoản Admin
+        accounts: user?.role === 'admin' ? accounts : accounts.filter(a => a.role !== 'admin'),
         login,
         loginAsDemo,
         register,
@@ -667,6 +989,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         getStudentsByClass,
         updateStudentPassword,
         deleteStudent,
+        getAllTeachers,
+        deleteTeacher,
+        resetTeacherPassword,
+        deleteClass,
+        getAllStudents,
       }}
     >
       {children}

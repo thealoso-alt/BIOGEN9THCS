@@ -200,7 +200,7 @@ export const RegisterPage: React.FC = () => {
                   type="text"
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
-                  placeholder={role === 'teacher' ? 'Cô Nguyễn Thu Hương' : 'Nguyễn Minh Anh'}
+                  placeholder={role === 'teacher' ? 'Thầy/Cô Nguyễn Văn A' : 'Nguyễn Minh Anh'}
                   className="w-full rounded-xl bg-slate-50 border border-slate-200 pl-9 pr-3 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-purple-500 focus:outline-none transition-all"
                   required
                 />

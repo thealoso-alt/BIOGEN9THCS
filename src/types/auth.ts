@@ -1,4 +1,4 @@
-export type UserRole = 'teacher' | 'student';
+export type UserRole = 'teacher' | 'student' | 'admin';
 
 export interface UserProfile {
   uid: string;
@@ -8,6 +8,8 @@ export interface UserProfile {
   role: UserRole;
   avatarUrl?: string;
   schoolName?: string;
+  teacherCode?: string; // Unique teacher code (e.g. GV-839102)
+  studentCode?: string; // Unique student code (e.g. HS-194820)
   classIds: string[];
   currentClassId?: string;
   initialPassword?: string;
@@ -21,12 +23,15 @@ export interface UserProfile {
 
 export interface StudentAccount {
   uid: string;
+  studentCode?: string; // Unique student code (e.g. HS-194820)
   fullName: string;
   username: string;
   password: string;
   classId: string;
   className: string;
   classCode: string;
+  teacherId?: string;
+  teacherCode?: string; // Managed by this teacher
   email?: string;
   notes?: string;
   xp?: number;
@@ -42,6 +47,8 @@ export interface UserAccountCredential {
   fullName: string;
   email?: string;
   schoolName?: string;
+  teacherCode?: string;
+  studentCode?: string;
   classIds: string[];
   currentClassId?: string;
   initialPassword?: string;
@@ -59,6 +66,7 @@ export interface ClassRoom {
   subject: string; // e.g. "Sinh học 9"
   schoolYear: string; // e.g. "2026–2027"
   teacherId: string;
+  teacherCode?: string; // Unique teacher code
   teacherName: string;
   studentCount: number;
   studentIds: string[];

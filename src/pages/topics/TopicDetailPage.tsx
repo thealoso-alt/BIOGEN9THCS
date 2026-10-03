@@ -17,6 +17,7 @@ import {
 import { TopicModelRenderer } from '../../components/models/TopicModelRenderer';
 import { TopicVideoLibrary } from '../../components/materials/TopicVideoLibrary';
 import { TopicKnowledgeViewer } from '../../components/knowledge/TopicKnowledgeViewer';
+import { syncProgressToGoogleSheet } from '../../services/googleSheetService';
 import {
   Compass,
   Play,
@@ -59,7 +60,7 @@ interface MaterialItem {
 
 export const TopicDetailPage: React.FC = () => {
   const { selectedTopicId, selectedTab, navigate } = useNavigation();
-  const { userProgress, updateProgress, user } = useAuth();
+  const { userProgress, updateProgress, user, classes } = useAuth();
 
   const VALID_TABS = ['interactive', 'knowledge', 'english_bio', 'materials', 'practice', 'challenge', 'assessment'];
 
@@ -136,7 +137,7 @@ export const TopicDetailPage: React.FC = () => {
       title: `Tóm tắt sơ đồ tư duy & công thức: ${topic.titleVi}`,
       type: 'PDF',
       size: '2.4 MB',
-      author: 'Cô Nguyễn Thu Hương',
+      author: 'Tổ Bộ môn Sinh học',
       visibility: 'PUBLIC',
       createdAt: '2026-09-20',
     },
@@ -272,6 +273,28 @@ export const TopicDetailPage: React.FC = () => {
       },
       correctCount * 15
     );
+
+    // Sync student score and practice results directly to Google Sheet
+    if (user) {
+      const studentCode = user.studentCode || (user.role === 'student' ? `HS-${(user.uid || '').replace(/[^0-9]/g, '').slice(-6).padStart(6, '0')}` : 'HS-GUEST');
+      const assignedClass = classes.find(c => (user.currentClassId && c.id === user.currentClassId) || (user.classIds && user.classIds.includes(c.id)));
+      syncProgressToGoogleSheet({
+        timestamp: new Date().toISOString(),
+        studentCode,
+        fullName: user.fullName || user.username || 'Học sinh',
+        username: user.username || user.email || 'hocsinh',
+        classCode: assignedClass?.code || 'BIO9',
+        teacherCode: assignedClass?.teacherCode || user.teacherCode || 'GV-ONLINE',
+        topicId: topic.id,
+        topicTitle: topic.titleVi,
+        activityType: 'practice_10_questions',
+        score: correctCount,
+        maxScore: 10,
+        correctCount: correctCount,
+        totalQuestions: 10,
+        xpEarned: correctCount * 15,
+      }).catch(err => console.warn('Failed to sync practice progress to Google Sheet:', err));
+    }
   };
 
   // Restart practice with a brand new randomized 10-question set from the Central Question Bank

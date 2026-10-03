@@ -168,7 +168,7 @@ const DEFAULT_TOPIC_VIDEOS: Record<string, TopicVideoItem[]> = {
       embedUrl: 'https://www.youtube.com/embed/L61UpC_0GvA?autoplay=1&rel=0',
       provider: 'youtube',
       durationMinutes: 10,
-      authorName: 'Cô Nguyễn Thu Hương',
+      authorName: 'Tổ Bộ môn Sinh học',
       gradeLevel: 'Thực hành Sinh học',
       createdAt: '2026-09-21',
       viewsCount: 218,

@@ -17,6 +17,7 @@ import {
   School,
   Flame,
   RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -102,27 +103,38 @@ export const Navbar: React.FC = () => {
 
         {/* Right Section */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick Demo Switcher */}
-          <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200/80 rounded-xl p-0.5 text-xs">
+          {/* Role Indicator / Switcher */}
+          {role === 'admin' ? (
             <button
-              onClick={() => switchRole('student')}
-              className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all flex items-center gap-1 ${
-                role === 'student' ? 'bg-sky-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
+              onClick={() => navigate('admin_dashboard')}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-900 to-indigo-900 border border-purple-500/50 text-white font-bold text-[11px] shadow-sm flex items-center gap-1.5 hover:from-purple-800 hover:to-indigo-800 transition-all cursor-pointer"
+              title="Mở Bảng Quản trị Hệ thống Toàn quyền"
             >
-              <GraduationCap className="h-3 w-3" />
-              <span>Học sinh</span>
+              <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
+              <span>Quản Trị Hệ Thống</span>
             </button>
-            <button
-              onClick={() => switchRole('teacher')}
-              className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all flex items-center gap-1 ${
-                role === 'teacher' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <School className="h-3 w-3" />
-              <span>Giáo viên</span>
-            </button>
-          </div>
+          ) : (
+            <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200/80 rounded-xl p-0.5 text-xs">
+              <button
+                onClick={() => switchRole('student')}
+                className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all flex items-center gap-1 ${
+                  role === 'student' ? 'bg-sky-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <GraduationCap className="h-3 w-3" />
+                <span>Học sinh</span>
+              </button>
+              <button
+                onClick={() => switchRole('teacher')}
+                className={`px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all flex items-center gap-1 ${
+                  role === 'teacher' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <School className="h-3 w-3" />
+                <span>Giáo viên</span>
+              </button>
+            </div>
+          )}
 
           {/* Quick Reset 0% Button (Item 1) */}
           <button
@@ -167,12 +179,28 @@ export const Navbar: React.FC = () => {
                   <button
                     onClick={() => {
                       setUserMenuOpen(false);
-                      navigate(role === 'teacher' ? 'teacher_dashboard' : 'student_dashboard');
+                      if (role === 'admin') {
+                        navigate('admin_dashboard');
+                      } else if (role === 'teacher') {
+                        navigate('teacher_dashboard');
+                      } else {
+                        navigate('student_dashboard');
+                      }
                     }}
                     className="w-full text-left px-3 py-2 text-slate-700 hover:bg-sky-50 hover:text-sky-700 rounded-xl flex items-center gap-2 transition-colors"
                   >
-                    <User className="h-4 w-4 text-sky-500" />
-                    <span>{role === 'teacher' ? 'Bảng điều khiển Giáo viên' : 'Khu vực Học tập'}</span>
+                    {role === 'admin' ? (
+                      <ShieldCheck className="h-4 w-4 text-purple-600" />
+                    ) : (
+                      <User className="h-4 w-4 text-sky-500" />
+                    )}
+                    <span>
+                      {role === 'admin'
+                        ? 'Bảng Quản Trị Hệ Thống'
+                        : role === 'teacher'
+                        ? 'Bảng điều khiển Giáo viên'
+                        : 'Khu vực Học tập'}
+                    </span>
                   </button>
 
                   <button
@@ -248,20 +276,33 @@ export const Navbar: React.FC = () => {
         <div className="md:hidden border-b border-slate-200 bg-white px-4 py-3 space-y-2 text-xs text-slate-700 shadow-md">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <span className="text-slate-500 font-medium">Vai trò:</span>
-            <div className="flex items-center gap-1">
+            {role === 'admin' ? (
               <button
-                onClick={() => switchRole('student')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${role === 'student' ? 'bg-sky-500 text-white' : 'text-slate-600 bg-slate-100'}`}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate('admin_dashboard');
+                }}
+                className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-900 text-purple-200 flex items-center gap-1"
               >
-                Học sinh
+                <ShieldCheck className="h-3 w-3 text-amber-400" />
+                <span>Admin Toàn Quyền</span>
               </button>
-              <button
-                onClick={() => switchRole('teacher')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${role === 'teacher' ? 'bg-purple-600 text-white' : 'text-slate-600 bg-slate-100'}`}
-              >
-                Giáo viên
-              </button>
-            </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => switchRole('student')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${role === 'student' ? 'bg-sky-500 text-white' : 'text-slate-600 bg-slate-100'}`}
+                >
+                  Học sinh
+                </button>
+                <button
+                  onClick={() => switchRole('teacher')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold ${role === 'teacher' ? 'bg-purple-600 text-white' : 'text-slate-600 bg-slate-100'}`}
+                >
+                  Giáo viên
+                </button>
+              </div>
+            )}
           </div>
 
           <button

@@ -5,23 +5,21 @@ import { StudentTopicProgress } from '../types/genetics';
 import { createFreshProgress } from './progressUtils';
 
 export const DEMO_TEACHER: UserProfile = {
-  uid: 'teacher_demo_1',
-  email: 'giaovien.bio9@thcs.edu.vn',
-  username: 'teacher_huong',
-  fullName: 'Cô Nguyễn Thu Hương',
+  uid: '',
+  username: '',
+  fullName: '',
   role: 'teacher',
-  schoolName: 'THCS Chu Văn An',
-  classIds: ['class_9a1', 'class_9a2'],
-  currentClassId: 'class_9a1',
-  xp: 4500,
-  level: 15,
-  streakDays: 42,
-  badges: ['badge_dna_explorer', 'badge_master_teacher', 'badge_challenge_maker'],
-  createdAt: '2026-09-01T08:00:00.000Z',
+  classIds: [],
+  xp: 0,
+  level: 1,
+  streakDays: 0,
+  badges: [],
+  createdAt: new Date().toISOString(),
 };
 
 export const DEMO_STUDENT: UserProfile = {
   uid: 'student_demo_1',
+  studentCode: 'HS-900001',
   email: 'nguyen.minhanh@student.edu.vn',
   username: 'minhanh9a1',
   fullName: 'Nguyễn Minh Anh',
@@ -36,25 +34,38 @@ export const DEMO_STUDENT: UserProfile = {
   createdAt: '2026-09-05T09:00:00.000Z',
 };
 
+export const DEMO_ADMIN: UserProfile = {
+  uid: 'admin_root',
+  username: 'admin',
+  fullName: 'Quản trị viên Hệ thống',
+  email: 'admin@biogen9.edu.vn',
+  role: 'admin',
+  classIds: [],
+  xp: 9999,
+  level: 99,
+  streakDays: 30,
+  badges: ['badge_dna_explorer', 'badge_gene_explorer', 'badge_rna_master'],
+  createdAt: '2026-09-01T00:00:00.000Z',
+};
+
 export const INITIAL_ACCOUNTS: UserAccountCredential[] = [
   {
-    uid: 'teacher_demo_1',
-    email: 'giaovien.bio9@thcs.edu.vn',
-    username: 'teacher_huong',
-    password: '123456',
-    fullName: 'Cô Nguyễn Thu Hương',
-    role: 'teacher',
-    schoolName: 'THCS Chu Văn An',
-    classIds: ['class_9a1', 'class_9a2'],
-    currentClassId: 'class_9a1',
-    xp: 4500,
-    level: 15,
-    streakDays: 42,
-    badges: ['badge_dna_explorer', 'badge_master_teacher', 'badge_challenge_maker'],
-    createdAt: '2026-09-01T08:00:00.000Z',
+    uid: 'admin_root',
+    username: 'admin',
+    password: 'admin',
+    fullName: 'Quản trị viên Hệ thống',
+    email: 'admin@biogen9.edu.vn',
+    role: 'admin',
+    classIds: [],
+    xp: 9999,
+    level: 99,
+    streakDays: 30,
+    badges: ['badge_dna_explorer', 'badge_gene_explorer', 'badge_rna_master'],
+    createdAt: '2026-09-01T00:00:00.000Z',
   },
   {
     uid: 'student_demo_1',
+    studentCode: 'HS-900001',
     email: 'nguyen.minhanh@student.edu.vn',
     username: 'minhanh9a1',
     password: '123456',
@@ -71,6 +82,7 @@ export const INITIAL_ACCOUNTS: UserAccountCredential[] = [
   },
   {
     uid: 'student_demo_2',
+    studentCode: 'HS-900002',
     email: 'nam.tb@student.edu.vn',
     username: 'nam.tb.9a1',
     password: 'Bio@1024',
@@ -87,6 +99,7 @@ export const INITIAL_ACCOUNTS: UserAccountCredential[] = [
   },
   {
     uid: 'student_demo_3',
+    studentCode: 'HS-900003',
     email: 'trang.lt@student.edu.vn',
     username: 'trang.lt.9a1',
     password: 'Bio@2048',
@@ -103,6 +116,7 @@ export const INITIAL_ACCOUNTS: UserAccountCredential[] = [
   },
   {
     uid: 'student_demo_4',
+    studentCode: 'HS-900004',
     email: 'bao.hg@student.edu.vn',
     username: 'bao.hg.9a2',
     password: 'Bio@4096',
@@ -119,6 +133,7 @@ export const INITIAL_ACCOUNTS: UserAccountCredential[] = [
   },
   {
     uid: 'student_demo_5',
+    studentCode: 'HS-900005',
     email: 'linh.pt@student.edu.vn',
     username: 'linh.pt.9a2',
     password: 'Bio@8192',
@@ -136,34 +151,7 @@ export const INITIAL_ACCOUNTS: UserAccountCredential[] = [
 ];
 
 
-export const DEMO_CLASSES: ClassRoom[] = [
-  {
-    id: 'class_9a1',
-    name: 'Lớp 9A1 - Chuyên Sinh',
-    code: 'BIO9A1',
-    subject: 'Sinh học 9 (Di truyền học)',
-    schoolYear: '2026–2027',
-    teacherId: 'teacher_demo_1',
-    teacherName: 'Cô Nguyễn Thu Hương',
-    studentCount: 38,
-    studentIds: ['student_demo_1', 'student_demo_2', 'student_demo_3'],
-    description: 'Lớp trọng điểm Sinh học 9 - Trường THCS Chu Văn An',
-    createdAt: '2026-09-01T08:30:00.000Z',
-  },
-  {
-    id: 'class_9a2',
-    name: 'Lớp 9A2',
-    code: 'BIO9A2',
-    subject: 'Sinh học 9',
-    schoolYear: '2026–2027',
-    teacherId: 'teacher_demo_1',
-    teacherName: 'Cô Nguyễn Thu Hương',
-    studentCount: 42,
-    studentIds: ['student_demo_4', 'student_demo_5'],
-    description: 'Lớp tiêu chuẩn Sinh học 9 - Năm học 2026-2027',
-    createdAt: '2026-09-02T10:00:00.000Z',
-  },
-];
+export const DEMO_CLASSES: ClassRoom[] = [];
 
 export const DEMO_BADGES: Badge[] = [
   {
@@ -244,8 +232,8 @@ export const DEMO_QUESTIONS: QuestionItem[] = [
     difficulty: 'easy',
     language: 'vi',
     englishTerm: 'Base Pairing (Nguyên tắc bổ sung)',
-    createdBy: 'teacher_demo_1',
-    createdByName: 'Cô Nguyễn Thu Hương',
+    createdBy: 'to_chuyen_mon',
+    createdByName: 'Tổ Bộ môn Sinh học',
     status: 'published',
     createdAt: '2026-09-10T08:00:00Z',
     updatedAt: '2026-09-10T08:00:00Z',
@@ -266,8 +254,8 @@ export const DEMO_QUESTIONS: QuestionItem[] = [
     difficulty: 'easy',
     language: 'vi',
     englishTerm: 'Nucleotide',
-    createdBy: 'teacher_demo_1',
-    createdByName: 'Cô Nguyễn Thu Hương',
+    createdBy: 'to_chuyen_mon',
+    createdByName: 'Tổ Bộ môn Sinh học',
     status: 'published',
     createdAt: '2026-09-10T08:30:00Z',
     updatedAt: '2026-09-10T08:30:00Z',
@@ -288,8 +276,8 @@ export const DEMO_QUESTIONS: QuestionItem[] = [
     difficulty: 'medium',
     language: 'bilingual',
     englishTerm: 'Metaphase (Kỳ giữa)',
-    createdBy: 'teacher_demo_1',
-    createdByName: 'Cô Nguyễn Thu Hương',
+    createdBy: 'to_chuyen_mon',
+    createdByName: 'Tổ Bộ môn Sinh học',
     status: 'published',
     createdAt: '2026-09-12T14:00:00Z',
     updatedAt: '2026-09-12T14:00:00Z',
@@ -329,7 +317,7 @@ export const DEMO_CHALLENGES: Challenge[] = [
     timeLimitSeconds: 60,
     difficulty: 'medium',
     xpReward: 150,
-    createdBy: 'teacher_demo_1',
+    createdBy: 'to_chuyen_mon',
     isActive: true,
   },
   {
@@ -340,7 +328,7 @@ export const DEMO_CHALLENGES: Challenge[] = [
     timeLimitSeconds: 90,
     difficulty: 'hard',
     xpReward: 200,
-    createdBy: 'teacher_demo_1',
+    createdBy: 'to_chuyen_mon',
     isActive: true,
   },
 ];

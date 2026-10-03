@@ -11,6 +11,7 @@ import { db, isFirebaseReady } from './config';
 import { QuestionItem, QuestionDifficulty, QuestionStatus, QuestionType } from '../types/question';
 import { TOPIC_QUESTION_BANKS, PracticeQuestion, MultipleChoiceQuestion, TrueFalseQuestion } from '../data/practiceQuestionsData';
 import { GENETICS_TOPICS } from '../data/topicsData';
+import { syncQuestionToGoogleSheet } from '../services/googleSheetService';
 
 const COLLECTION_NAME = 'questions';
 const LOCAL_STORAGE_KEY = 'biogen9_central_questions';
@@ -38,8 +39,8 @@ export function buildInitialQuestions(): QuestionItem[] {
         explanation: q.explanation || 'Lời giải chi tiết theo chương trình Sinh học 9.',
         difficulty: (index % 3 === 0 ? 'easy' : index % 3 === 1 ? 'medium' : 'hard') as QuestionDifficulty,
         language: 'vi',
-        createdBy: 'teacher_huong',
-        createdByName: 'Cô Nguyễn Thu Hương',
+        createdBy: 'to_chuyen_mon',
+        createdByName: 'Tổ Bộ môn Sinh học',
         status: 'published',
         createdAt: new Date(Date.now() - (index * 3600000)).toISOString(),
         updatedAt: new Date().toISOString()
@@ -61,8 +62,8 @@ export function buildInitialQuestions(): QuestionItem[] {
         explanation: q.explanation || 'Phân tích tính đúng/sai của nhận định.',
         difficulty: (index % 2 === 0 ? 'easy' : 'medium') as QuestionDifficulty,
         language: 'vi',
-        createdBy: 'teacher_huong',
-        createdByName: 'Cô Nguyễn Thu Hương',
+        createdBy: 'to_chuyen_mon',
+        createdByName: 'Tổ Bộ môn Sinh học',
         status: 'published',
         createdAt: new Date(Date.now() - (index * 3600000)).toISOString(),
         updatedAt: new Date().toISOString()
@@ -208,6 +209,21 @@ export async function saveQuestionToCloud(question: QuestionItem): Promise<boole
   try {
     const docRef = doc(db, COLLECTION_NAME, question.id);
     await setDoc(docRef, updatedItem);
+
+    // Synchronize to Google Sheet
+    syncQuestionToGoogleSheet({
+      teacherCode: updatedItem.createdBy || 'GV-ONLINE',
+      teacherName: updatedItem.createdByName || 'Giáo viên',
+      questionId: updatedItem.id,
+      topicId: updatedItem.topicId,
+      type: updatedItem.type,
+      question: updatedItem.question,
+      correctAnswer: Array.isArray(updatedItem.correctAnswer) ? updatedItem.correctAnswer.join(', ') : String(updatedItem.correctAnswer),
+      difficulty: updatedItem.difficulty,
+      status: updatedItem.status,
+      updatedAt: updatedItem.updatedAt || new Date().toISOString(),
+    }).catch(err => console.warn('Could not sync question to Google Sheet:', err));
+
     return true;
   } catch (err) {
     console.error('Error saving question to Firestore:', err);

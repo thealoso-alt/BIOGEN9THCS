@@ -53,11 +53,19 @@ export const StudentBatchImportModal: React.FC<Props> = ({
   defaultClassId,
   onSuccess,
 }) => {
-  const { classes, batchImportStudents } = useAuth();
+  const { user, classes, batchImportStudents } = useAuth();
+
+  // Only classes belonging to this teacher
+  const teacherClasses = classes.filter(c =>
+    c.teacherId === user?.uid ||
+    (user?.teacherCode && c.teacherCode === user.teacherCode) ||
+    (user?.classIds && user.classIds.includes(c.id))
+  );
+  const availableClasses = teacherClasses.length > 0 ? teacherClasses : classes;
 
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    if (defaultClassId && classes.some(c => c.id === defaultClassId)) return defaultClassId;
-    return classes[0]?.id || '';
+    if (defaultClassId && availableClasses.some(c => c.id === defaultClassId)) return defaultClassId;
+    return availableClasses[0]?.id || '';
   });
 
   const [inputMethod, setInputMethod] = useState<'paste' | 'file'>('paste');
@@ -455,7 +463,7 @@ export const StudentBatchImportModal: React.FC<Props> = ({
                   onChange={e => setSelectedClassId(e.target.value)}
                   className="rounded-xl border border-purple-300 bg-white px-3 py-2 text-xs font-bold text-purple-950 focus:outline-none focus:border-purple-600 shadow-xs"
                 >
-                  {classes.map(c => (
+                  {availableClasses.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.code}) - Hiện có {c.studentCount} HS
                     </option>

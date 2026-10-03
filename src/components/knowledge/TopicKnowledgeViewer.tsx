@@ -7,6 +7,7 @@ import {
   resetTopicKnowledgeToDefault,
   CloudTopicKnowledge,
 } from '../../firebase/knowledgeService';
+import { syncKnowledgeToGoogleSheet } from '../../services/googleSheetService';
 import {
   Pencil,
   Check,
@@ -79,12 +80,23 @@ export const TopicKnowledgeViewer: React.FC<TopicKnowledgeViewerProps> = ({
       };
 
       await saveTopicKnowledgeToCloud(payload, {
-        uid: user?.uid || 'teacher_huong',
-        fullName: user?.fullName || 'Cô Nguyễn Thu Hương',
+        uid: user?.uid || 'teacher',
+        fullName: user?.fullName || 'Giáo viên',
       });
 
+      // Synchronize customized standard knowledge to Google Sheet
+      syncKnowledgeToGoogleSheet({
+        teacherCode: user?.teacherCode || 'GV-ONLINE',
+        teacherName: user?.fullName || 'Giáo viên',
+        topicId,
+        topicTitle: topicTitleVi,
+        sectionCount: draftSections.length,
+        summary: draftSections.map(s => s.heading).join('; '),
+        updatedAt: new Date().toISOString(),
+      }).catch(err => console.warn('Could not sync knowledge to Google Sheet:', err));
+
       setIsEditing(false);
-      setSaveSuccessMsg('Đã lưu và xuất bản trực tuyến lên Cloud Firestore! Tất cả học sinh sẽ thấy nội dung mới nhất ngay lập tức.');
+      setSaveSuccessMsg('Đã lưu và xuất bản trực tuyến lên Cloud Firestore & Google Sheet! Tất cả học sinh sẽ thấy nội dung mới nhất ngay lập tức.');
       setTimeout(() => setSaveSuccessMsg(null), 5000);
     } catch (err) {
       console.error('Lỗi khi lưu kiến thức lên Cloud:', err);

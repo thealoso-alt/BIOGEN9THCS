@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -32,8 +33,8 @@ export const LoginPage: React.FC = () => {
   const handleRoleToggle = (selectedRole: UserRole) => {
     setRole(selectedRole);
     if (selectedRole === 'teacher') {
-      setIdentifier(method === 'username' ? 'teacher_huong' : 'giaovien.bio9@thcs.edu.vn');
-      setPassword('123456');
+      setIdentifier('');
+      setPassword('');
     } else {
       setIdentifier(method === 'username' ? 'minhanh9a1' : 'nguyen.minhanh@student.edu.vn');
       setPassword('123456');
@@ -44,7 +45,7 @@ export const LoginPage: React.FC = () => {
   const handleMethodToggle = (selectedMethod: 'username' | 'email') => {
     setMethod(selectedMethod);
     if (role === 'teacher') {
-      setIdentifier(selectedMethod === 'username' ? 'teacher_huong' : 'giaovien.bio9@thcs.edu.vn');
+      setIdentifier('');
     } else {
       setIdentifier(selectedMethod === 'username' ? 'minhanh9a1' : 'nguyen.minhanh@student.edu.vn');
     }
@@ -65,9 +66,12 @@ export const LoginPage: React.FC = () => {
     setErrorMsg(null);
 
     try {
-      const res = await login(identifier, password, role);
+      const isTryingAdmin = identifier.trim().toLowerCase() === 'admin';
+      const res = await login(identifier, password, isTryingAdmin ? undefined : role);
       if (res.success) {
-        if (role === 'teacher') {
+        if (isTryingAdmin) {
+          navigate('admin_dashboard');
+        } else if (role === 'teacher') {
           navigate('teacher_dashboard');
         } else {
           navigate('student_dashboard');
@@ -250,39 +254,32 @@ export const LoginPage: React.FC = () => {
           </button>
         </form>
 
-        {/* Fast Demo Access */}
-        <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-          <p className="text-[11px] text-slate-500 font-medium mb-2.5">
-            Trải nghiệm nhanh tài khoản mẫu:
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('student')}
-              className="py-2 px-2.5 rounded-xl border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-800 font-bold transition-colors flex items-center justify-center gap-1.5"
-            >
-              <GraduationCap className="h-3.5 w-3.5 text-sky-600" />
-              <span>Học sinh Minh Anh</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoLogin('teacher')}
-              className="py-2 px-2.5 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold transition-colors flex items-center justify-center gap-1.5"
-            >
-              <School className="h-3.5 w-3.5 text-purple-600" />
-              <span>Cô giáo Thu Hương</span>
-            </button>
-          </div>
-        </div>
-
         {/* Register Prompts */}
-        <div className="mt-5 text-center text-xs text-slate-500">
+        <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
           Chưa có tài khoản Giáo viên?{' '}
           <button
+            type="button"
             onClick={() => navigate('register')}
-            className="font-bold text-purple-600 hover:text-purple-700 underline underline-offset-2"
+            className="font-bold text-purple-600 hover:text-purple-700 underline underline-offset-2 cursor-pointer"
           >
             Đăng ký tài khoản Giáo viên ngay
+          </button>
+        </div>
+
+        {/* Cổng Quản trị viên Hệ thống */}
+        <div className="mt-4 pt-3 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIdentifier('admin');
+              setPassword('admin');
+              setErrorMsg(null);
+            }}
+            className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
+            title="Đăng nhập tài khoản Quản trị viên Hệ thống (admin/admin)"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Đăng nhập Cổng Quản trị viên (admin)</span>
           </button>
         </div>
       </div>

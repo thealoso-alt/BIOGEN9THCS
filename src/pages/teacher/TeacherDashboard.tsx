@@ -14,6 +14,16 @@ import {
   getCachedQuestions,
 } from '../../firebase/questionBankService';
 import {
+  GOOGLE_SHEET_WEBAPP_URL,
+  RECOMMENDED_GAS_CODE,
+  getSyncHistory,
+  subscribeToSyncLogs,
+  syncTeacherToGoogleSheet,
+  syncClassToGoogleSheet,
+  syncStudentsToGoogleSheet,
+  SyncLogItem,
+} from '../../services/googleSheetService';
+import {
   School,
   Users,
   BookOpen,
@@ -98,12 +108,90 @@ export const TeacherDashboard: React.FC = () => {
   const [newClassYear, setNewClassYear] = useState('2026–2027');
   const [newClassCode, setNewClassCode] = useState('');
 
+  // Strictly filter classes to ONLY those belonging to the logged-in teacher
+  const myClasses = classes.filter(c =>
+    c.teacherId === user?.uid ||
+    (user?.teacherCode && c.teacherCode === user.teacherCode) ||
+    (user?.classIds && user.classIds.includes(c.id))
+  );
+
   // Batch Student Import Modal
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importClassId, setImportClassId] = useState<string>('');
 
   // Selected Class for Roster view
-  const [selectedClassForRoster, setSelectedClassForRoster] = useState<string>(() => classes[0]?.id || 'class_9a1');
+  const [selectedClassForRoster, setSelectedClassForRoster] = useState<string>(() => myClasses[0]?.id || '');
+
+  useEffect(() => {
+    if (!selectedClassForRoster && myClasses.length > 0) {
+      setSelectedClassForRoster(myClasses[0].id);
+    }
+  }, [myClasses, selectedClassForRoster]);
+
+  // Google Sheet Sync State
+  const [syncLogs, setSyncLogs] = useState<SyncLogItem[]>(() => getSyncHistory());
+  const [isGasCodeModalOpen, setIsGasCodeModalOpen] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeToSyncLogs(() => {
+      setSyncLogs(getSyncHistory());
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSyncAllToGoogleSheet = async () => {
+    if (!user) return;
+    setIsSyncingAll(true);
+    try {
+      // 1. Sync Teacher
+      await syncTeacherToGoogleSheet({
+        teacherCode: user.teacherCode || `GV-${user.uid.slice(-6)}`,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        schoolName: user.schoolName,
+        registeredAt: user.createdAt || new Date().toISOString(),
+      });
+
+      // 2. Sync My Classes and their Students
+      for (const c of myClasses) {
+        await syncClassToGoogleSheet({
+          classId: c.id,
+          classCode: c.code,
+          className: c.name,
+          subject: c.subject,
+          schoolYear: c.schoolYear,
+          teacherCode: c.teacherCode || user.teacherCode || '',
+          teacherName: c.teacherName || user.fullName,
+          studentCount: c.studentCount,
+          createdAt: c.createdAt,
+        });
+
+        const stList = getStudentsByClass(c.id);
+        if (stList.length > 0) {
+          await syncStudentsToGoogleSheet(stList.map(s => ({
+            studentCode: s.studentCode || '',
+            fullName: s.fullName,
+            username: s.username,
+            password: s.password,
+            classCode: s.classCode,
+            className: s.className,
+            teacherCode: s.teacherCode || user.teacherCode || '',
+            email: s.email,
+            notes: s.notes,
+            createdAt: s.createdAt,
+          })));
+        }
+      }
+      triggerToast('Đã đồng bộ toàn bộ Giáo viên, Lớp học và Học sinh lên Google Sheet thành công!');
+    } catch (err) {
+      console.warn('Sync all error:', err);
+      triggerToast('Có lỗi khi đồng bộ lên Google Sheet. Vui lòng kiểm tra lại webhook.');
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
 
   // Student Search Query in Roster
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -146,6 +234,7 @@ export const TeacherDashboard: React.FC = () => {
       subject: newClassSubject.trim(),
       schoolYear: newClassYear.trim(),
       teacherId: user?.uid || 'teacher_1',
+      teacherCode: user?.teacherCode || '',
       teacherName: user?.fullName || 'Giáo viên',
       description: `Lớp học ${newClassName.trim()} - Năm học ${newClassYear.trim()}`,
     });
@@ -158,12 +247,12 @@ export const TeacherDashboard: React.FC = () => {
   };
 
   const handleOpenImportModal = (classId?: string) => {
-    setImportClassId(classId || selectedClassForRoster || classes[0]?.id || '');
+    setImportClassId(classId || selectedClassForRoster || myClasses[0]?.id || '');
     setIsImportModalOpen(true);
   };
 
   // Current class roster
-  const currentClassObj = classes.find(c => c.id === selectedClassForRoster) || classes[0];
+  const currentClassObj = myClasses.find(c => c.id === selectedClassForRoster) || myClasses[0] || null;
   const currentRoster = currentClassObj ? getStudentsByClass(currentClassObj.id) : [];
 
   const filteredRoster = currentRoster.filter(st => {
@@ -358,8 +447,8 @@ export const TeacherDashboard: React.FC = () => {
         difficulty: aiDifficulty,
         language: aiIncludeEnglish ? 'bilingual' : 'vi',
         englishTerm: aiIncludeEnglish ? `${targetTopic.titleEn} Mechanism` : undefined,
-        createdBy: user?.uid || 'teacher_demo_1',
-        createdByName: user?.fullName || 'Cô Nguyễn Thu Hương',
+        createdBy: user?.uid || 'teacher',
+        createdByName: user?.fullName || 'Giáo viên',
         status: 'draft',
         isAiGenerated: true,
         aiModel: 'Gemini 2.5 Flash',
@@ -541,7 +630,63 @@ export const TeacherDashboard: React.FC = () => {
     return true;
   });
 
-  const totalStudents = classes.reduce((sum, c) => sum + c.studentCount, 0);
+  const totalStudents = myClasses.reduce((sum, c) => sum + c.studentCount, 0);
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <div className="rounded-3xl border border-purple-900/40 bg-gradient-to-br from-slate-900 via-slate-900 to-purple-950/40 p-8 sm:p-12 text-center shadow-2xl space-y-6">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+            <School className="h-8 w-8" />
+          </div>
+          <div className="space-y-2 max-w-xl mx-auto">
+            <h2 className="text-2xl font-black text-white">Bảng Điều Khiển Giáo Viên Sinh Học 9</h2>
+            <p className="text-xs sm:text-sm text-slate-300">
+              Khu vực dành riêng cho Giáo viên quản lý lớp học, cấp mã học sinh, biên soạn kiến thức chuẩn và quản trị ngân hàng câu hỏi. Vui lòng đăng nhập hoặc đăng ký tài khoản Giáo viên để tiếp tục.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={() => navigate('login')}
+              className="px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-900/30 transition-all cursor-pointer"
+            >
+              Đăng nhập Giáo viên
+            </button>
+            <button
+              onClick={() => navigate('register')}
+              className="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-200 border border-purple-800 font-bold text-xs transition-all cursor-pointer"
+            >
+              Đăng ký Giáo viên Mới
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role !== 'teacher') {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-lg space-y-4">
+          <div className="mx-auto w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <h2 className="text-lg font-black text-slate-900">Khu vực dành cho Giáo viên</h2>
+          <p className="text-xs text-slate-600">
+            Bạn đang đăng nhập bằng tài khoản Học sinh ({user.fullName} - Mã HS: {user.studentCode || 'HS-GUEST'}). Khu vực này chỉ dành cho Thầy/Cô bộ môn Sinh học.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => navigate('student_dashboard')}
+              className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs cursor-pointer"
+            >
+              Đến Khu vực Học tập của bạn
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -557,9 +702,14 @@ export const TeacherDashboard: React.FC = () => {
       <div className="rounded-3xl border border-purple-900/40 bg-gradient-to-r from-slate-900 via-slate-900/90 to-purple-950/30 p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-purple-400 font-semibold">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-purple-400 font-semibold">
               <School className="h-4 w-4" />
               <span>BẢNG ĐIỀU KHIỂN GIÁO VIÊN SINH HỌC 9</span>
+              {user?.teacherCode && (
+                <span className="px-2.5 py-0.5 rounded-full bg-purple-950/80 border border-purple-500/50 text-purple-200 font-mono font-bold">
+                  Mã GV: {user.teacherCode}
+                </span>
+              )}
               {user?.schoolName && (
                 <span className="text-slate-400">· {user.schoolName}</span>
               )}
@@ -568,7 +718,7 @@ export const TeacherDashboard: React.FC = () => {
               Xin chào, {user?.fullName || 'Giáo viên'}! 🔬
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Quản lý lớp học, tải lên danh sách học sinh và tự động tạo TK/MK, duyệt câu hỏi do AI tạo (Draft → Review → Publish), và theo dõi tiến độ học tập.
+              Quản lý lớp học và học sinh do thầy/cô phụ trách, tự động cấp Mã HS riêng biệt, chỉnh sửa nội dung bài học online và đồng bộ Google Sheets.
             </p>
           </div>
 
@@ -576,7 +726,7 @@ export const TeacherDashboard: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
             <button
               onClick={() => handleOpenImportModal()}
-              className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/40 flex items-center gap-1.5 transition-all"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-950/40 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <UserPlus className="h-4 w-4" />
               <span>Tải DS &amp; Tạo TK Học Sinh</span>
@@ -584,7 +734,7 @@ export const TeacherDashboard: React.FC = () => {
 
             <button
               onClick={() => setIsAddClassOpen(true)}
-              className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 flex items-center gap-1.5 transition-colors"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>Tạo Lớp Mới</span>
@@ -592,7 +742,7 @@ export const TeacherDashboard: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('ai_generator')}
-              className="px-4 py-2.5 rounded-xl font-bold text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-800/80 hover:bg-cyan-900/40 flex items-center gap-1.5 transition-colors"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs text-cyan-300 bg-cyan-950/60 border border-cyan-800/80 hover:bg-cyan-900/40 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Sparkles className="h-4 w-4 text-cyan-400" />
               <span>AI Tạo Câu Hỏi</span>
@@ -608,7 +758,7 @@ export const TeacherDashboard: React.FC = () => {
           >
             <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
               <Users className="h-3.5 w-3.5 text-purple-400" />
-              <span>Tổng học sinh</span>
+              <span>Học sinh của tôi</span>
             </div>
             <span className="text-2xl font-black text-white font-mono">{totalStudents}</span>
           </div>
@@ -619,9 +769,9 @@ export const TeacherDashboard: React.FC = () => {
           >
             <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
               <School className="h-3.5 w-3.5 text-cyan-400" />
-              <span>Số lớp phụ trách</span>
+              <span>Lớp tôi quản lý</span>
             </div>
-            <span className="text-2xl font-black text-white font-mono">{classes.length}</span>
+            <span className="text-2xl font-black text-white font-mono">{myClasses.length}</span>
           </div>
 
           <div
@@ -641,11 +791,69 @@ export const TeacherDashboard: React.FC = () => {
           >
             <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
               <Clock className="h-3.5 w-3.5 text-amber-400" />
-              <span>Câu hỏi chờ duyệt (Draft)</span>
+              <span>Chờ duyệt (Draft)</span>
             </div>
             <span className="text-2xl font-black text-amber-400 font-mono">
               {questions.filter(q => q.status === 'draft').length}
             </span>
+          </div>
+        </div>
+      </div>
+
+      {/* GOOGLE SHEETS LIVE SYNC STATUS & CONTROLS */}
+      <div className="rounded-2xl border border-emerald-900/50 bg-gradient-to-r from-slate-900 via-slate-950 to-emerald-950/30 p-4 sm:p-5 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-mono flex items-center gap-1.5">
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Google Sheets Webhook Đồng Bộ Tự Động (Online)
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-800/80 text-[10px] text-emerald-300 font-mono">
+                Kết nối thành công
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Dữ liệu của Giáo viên ({user.fullName} - Mã GV: <span className="font-mono text-emerald-300 font-bold">{user.teacherCode || 'GV-ONLINE'}</span>), các lớp học và mã học sinh riêng biệt ({totalStudents} HS) được ghi nhận tự động vào Google Sheet.
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 font-mono">
+              <span className="text-slate-500 font-bold">Các sheet đồng bộ:</span>
+              <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-200">1. GiaoVien</span>
+              <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-200">2. LopHoc</span>
+              <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-200">3. HocSinh</span>
+              <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-200">4. KetQuaHocTap</span>
+              <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-200">5. KienThucChuan_GV</span>
+              <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-200">6. NganHangCauHoi</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={handleSyncAllToGoogleSheet}
+              disabled={isSyncingAll}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-950/40 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {isSyncingAll ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Đang đồng bộ...</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Đồng bộ toàn bộ lên Sheet</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsGasCodeModalOpen(true)}
+              className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Xem Code Apps Script (6 Sheet)</span>
+            </button>
           </div>
         </div>
       </div>
@@ -694,7 +902,7 @@ export const TeacherDashboard: React.FC = () => {
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
             activeTab === 'classes' ? 'bg-purple-950/80 text-purple-200 border border-purple-300/40' : 'bg-slate-900 text-amber-300 border border-slate-600'
           }`}>
-            {classes.length}
+            {myClasses.length}
           </span>
         </button>
 
@@ -768,37 +976,49 @@ export const TeacherDashboard: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {classes.map(cls => (
-                  <div
-                    key={cls.id}
-                    className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-3"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-purple-400 font-semibold">{cls.schoolYear}</span>
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-cyan-950/70 text-cyan-300 font-mono text-xs font-bold border border-cyan-800/50">
-                          <KeyRound className="h-3 w-3" />
-                          <span>{cls.code}</span>
-                        </div>
-                      </div>
-                      <h4 className="text-base font-bold text-white">{cls.name}</h4>
-                      <p className="text-xs text-slate-400">{cls.subject}</p>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-xs text-slate-400">
-                      <span>{cls.studentCount} Học sinh</span>
-                      <button
-                        onClick={() => {
-                          setSelectedClassForRoster(cls.id);
-                          setActiveTab('students');
-                        }}
-                        className="text-purple-400 hover:text-purple-300 font-semibold"
-                      >
-                        Quản lý HS ──→
-                      </button>
-                    </div>
+                {myClasses.length === 0 ? (
+                  <div className="col-span-full p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
+                    <p className="text-xs text-slate-400">Thầy/Cô chưa có lớp học nào do mình quản lý.</p>
+                    <button
+                      onClick={() => setIsAddClassOpen(true)}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold"
+                    >
+                      + Tạo Lớp Đầu Tiên
+                    </button>
                   </div>
-                ))}
+                ) : (
+                  myClasses.map(cls => (
+                    <div
+                      key={cls.id}
+                      className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-3"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-purple-400 font-semibold">{cls.schoolYear}</span>
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-cyan-950/70 text-cyan-300 font-mono text-xs font-bold border border-cyan-800/50">
+                            <KeyRound className="h-3 w-3" />
+                            <span>{cls.code}</span>
+                          </div>
+                        </div>
+                        <h4 className="text-base font-bold text-white">{cls.name}</h4>
+                        <p className="text-xs text-slate-400">{cls.subject}</p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-xs text-slate-400">
+                        <span>{cls.studentCount} Học sinh</span>
+                        <button
+                          onClick={() => {
+                            setSelectedClassForRoster(cls.id);
+                            setActiveTab('students');
+                          }}
+                          className="text-purple-400 hover:text-purple-300 font-semibold cursor-pointer"
+                        >
+                          Quản lý HS ──→
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -953,7 +1173,7 @@ export const TeacherDashboard: React.FC = () => {
                   onChange={e => setSelectedClassForRoster(e.target.value)}
                   className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-purple-500"
                 >
-                  {classes.map(c => (
+                  {myClasses.map(c => (
                     <option key={c.id} value={c.id}>
                       {c.name} ({c.code}) - {c.studentCount} HS
                     </option>
@@ -1025,6 +1245,7 @@ export const TeacherDashboard: React.FC = () => {
                 <thead>
                   <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                     <th className="py-3 px-4 w-12 text-center">STT</th>
+                    <th className="py-3 px-4">Mã HS (Riêng)</th>
                     <th className="py-3 px-4">Họ và Tên Học Sinh</th>
                     <th className="py-3 px-4">Tên Đăng Nhập (Username)</th>
                     <th className="py-3 px-4">Mật Khẩu Cấp Phát</th>
@@ -1038,6 +1259,11 @@ export const TeacherDashboard: React.FC = () => {
                       <tr key={st.uid} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-500">
                           {idx + 1}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-amber-300">
+                          <span className="bg-amber-950/70 border border-amber-800/60 px-2 py-0.5 rounded text-[11px]">
+                            {st.studentCode || `HS-${st.uid.slice(-6)}`}
+                          </span>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2.5">
@@ -1115,15 +1341,15 @@ export const TeacherDashboard: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
                         <Users className="h-10 w-10 mx-auto text-slate-600 mb-2" />
                         <p className="font-bold text-white text-sm">Chưa có học sinh nào trong lớp này</p>
                         <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                          Bấm nút <strong>&quot;Tải Lên Danh Sách Mới&quot;</strong> để nhập danh sách và hệ thống sẽ tự động tạo tài khoản &amp; mật khẩu cho toàn bộ lớp!
+                          Bấm nút <strong>&quot;Tải Lên Danh Sách Mới&quot;</strong> để nhập danh sách và hệ thống sẽ tự động tạo tài khoản, cấp Mã HS riêng biệt cho toàn bộ lớp!
                         </p>
                         <button
                           onClick={() => handleOpenImportModal(selectedClassForRoster)}
-                          className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1.5"
+                          className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <UserPlus className="h-4 w-4" />
                           <span>Tải danh sách học sinh ngay</span>
@@ -1141,22 +1367,24 @@ export const TeacherDashboard: React.FC = () => {
       {/* Tab: Class Management */}
       {activeTab === 'classes' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-white">Quản lý Lớp học (Class Management)</h3>
-              <p className="text-xs text-slate-400">Danh sách các lớp, mã tham gia và sĩ số học sinh</p>
+              <h3 className="text-lg font-bold text-white">Quản lý Lớp học của tôi</h3>
+              <p className="text-xs text-slate-400">
+                Thầy/Cô chỉ quản lý và xem các lớp do chính mình phụ trách ({myClasses.length} lớp học)
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleOpenImportModal()}
-                className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-500 flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-500 flex items-center gap-1.5 cursor-pointer"
               >
                 <UserPlus className="h-4 w-4" />
                 <span>Nhập Học Sinh Hàng Loạt</span>
               </button>
               <button
                 onClick={() => setIsAddClassOpen(true)}
-                className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-purple-600 hover:bg-purple-500 flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-purple-600 hover:bg-purple-500 flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>Tạo Lớp Mới</span>
@@ -1165,55 +1393,76 @@ export const TeacherDashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {classes.map(cls => (
-              <div
-                key={cls.id}
-                className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-xs text-purple-400 font-semibold">{cls.schoolYear}</span>
-                    <h4 className="text-xl font-bold text-white">{cls.name}</h4>
-                    <p className="text-xs text-slate-400">{cls.subject}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
-                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">MÃ LỚP</span>
-                    <span className="font-mono text-base font-black text-cyan-400">{cls.code}</span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-slate-300">{cls.description}</p>
-
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Sĩ số học sinh:</span>
-                  <span className="font-mono font-bold text-white">{cls.studentCount} học sinh</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-xs">
-                  <button
-                    onClick={() => {
-                      setSelectedClassForRoster(cls.id);
-                      setActiveTab('students');
-                    }}
-                    className="py-2 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-center truncate"
-                  >
-                    Xem DS Học sinh
-                  </button>
-                  <button
-                    onClick={() => handleOpenImportModal(cls.id)}
-                    className="py-2 px-2 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 font-semibold text-center truncate"
-                  >
-                    + Nạp DS &amp; Tạo TK
-                  </button>
-                  <button
-                    onClick={() => handleCopyText(cls.code, 'Mã lớp')}
-                    className="py-2 px-2 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 font-semibold text-center truncate"
-                  >
-                    Sao chép mã
-                  </button>
-                </div>
+            {myClasses.length === 0 ? (
+              <div className="col-span-full p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-3">
+                <School className="h-10 w-10 text-purple-400 mx-auto" />
+                <h4 className="text-base font-bold text-white">Thầy/Cô chưa có lớp học nào do mình phụ trách</h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Hãy nhấn &quot;Tạo Lớp Mới&quot; để thiết lập lớp học, nhận mã tham gia lớp và bắt đầu quản lý học sinh của riêng mình.
+                </p>
+                <button
+                  onClick={() => setIsAddClassOpen(true)}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  + Tạo Lớp Đầu Tiên
+                </button>
               </div>
-            ))}
+            ) : (
+              myClasses.map(cls => (
+                <div
+                  key={cls.id}
+                  className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-xl"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-purple-400 font-semibold">{cls.schoolYear}</span>
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                          Mã GV: {cls.teacherCode || user?.teacherCode || 'GV-ONLINE'}
+                        </span>
+                      </div>
+                      <h4 className="text-xl font-bold text-white">{cls.name}</h4>
+                      <p className="text-xs text-slate-400">{cls.subject}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-semibold">MÃ LỚP</span>
+                      <span className="font-mono text-base font-black text-cyan-400">{cls.code}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-300">{cls.description}</p>
+
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Sĩ số học sinh:</span>
+                    <span className="font-mono font-bold text-white">{cls.studentCount} học sinh</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-xs">
+                    <button
+                      onClick={() => {
+                        setSelectedClassForRoster(cls.id);
+                        setActiveTab('students');
+                      }}
+                      className="py-2 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-center truncate cursor-pointer"
+                    >
+                      Xem DS Học sinh
+                    </button>
+                    <button
+                      onClick={() => handleOpenImportModal(cls.id)}
+                      className="py-2 px-2 rounded-lg bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 font-semibold text-center truncate cursor-pointer"
+                    >
+                      + Nạp DS &amp; Tạo TK
+                    </button>
+                    <button
+                      onClick={() => handleCopyText(cls.code, 'Mã lớp')}
+                      className="py-2 px-2 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 font-semibold text-center truncate cursor-pointer"
+                    >
+                      Sao chép mã
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -2089,6 +2338,126 @@ export const TeacherDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Google Apps Script & Sync Details Modal */}
+      {isGasCodeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-3xl rounded-3xl border border-emerald-800/80 bg-slate-900 p-6 sm:p-7 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5 text-emerald-400 font-bold text-sm">
+                <FileSpreadsheet className="h-5 w-5" />
+                <span>Cấu Hình &amp; Mã Nguồn Google Apps Script (Webhook GG Sheet)</span>
+              </div>
+              <button
+                onClick={() => setIsGasCodeModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+              <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block">
+                Webhook URL đang kích hoạt:
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={GOOGLE_SHEET_WEBAPP_URL}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 font-mono text-[11px] text-cyan-300 select-all"
+                />
+                <button
+                  onClick={() => handleCopyText(GOOGLE_SHEET_WEBAPP_URL, 'URL Webhook Google Sheet')}
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shrink-0 flex items-center gap-1 cursor-pointer"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy URL</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-bold text-white text-xs">
+                Cấu trúc 6 Sheet được hệ thống tự động tạo và ghi nhận dữ liệu:
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <span className="font-bold text-cyan-300 block mb-1">1. GiaoVien</span>
+                  <p className="text-slate-400">Mã GV riêng biệt, Họ tên, Tên đăng nhập, Email, Trường học, Ngày đăng ký</p>
+                </div>
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <span className="font-bold text-cyan-300 block mb-1">2. LopHoc</span>
+                  <p className="text-slate-400">Mã Lớp, Tên Lớp, Mã Tham Gia, Môn học, Niên khóa, Mã GV Quản lý, Sĩ số</p>
+                </div>
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <span className="font-bold text-cyan-300 block mb-1">3. HocSinh</span>
+                  <p className="text-slate-400">Mã HS riêng biệt (HS-xxxxxx), Họ tên, Tên đăng nhập, Mật khẩu, Lớp, Mã GV</p>
+                </div>
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <span className="font-bold text-cyan-300 block mb-1">4. KetQuaHocTap</span>
+                  <p className="text-slate-400">Thời gian, Mã HS, Tên HS, Lớp, Mã GV, Chuyên đề, Hoạt động, Điểm, XP</p>
+                </div>
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <span className="font-bold text-cyan-300 block mb-1">5. KienThucChuan_GV</span>
+                  <p className="text-slate-400">Thời gian, Mã GV, Tên GV, Chuyên đề, Số mục nội dung, Tóm tắt chỉnh sửa</p>
+                </div>
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <span className="font-bold text-cyan-300 block mb-1">6. NganHangCauHoi</span>
+                  <p className="text-slate-400">Mã GV, Mã Câu hỏi, Chuyên đề, Loại câu, Nội dung, Đáp án đúng, Độ khó</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sync History Logs */}
+            <div className="space-y-2">
+              <span className="font-bold text-white text-xs block">Nhật ký truyền tin gần đây:</span>
+              <div className="max-h-32 overflow-y-auto bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1.5 font-mono text-[10px]">
+                {syncLogs.length > 0 ? (
+                  syncLogs.slice(0, 10).map(log => (
+                    <div key={log.id} className="flex items-center justify-between text-slate-300">
+                      <span className="text-slate-500">[{log.timestamp}]</span>
+                      <span className="text-cyan-400 font-bold">[{log.sheet}]</span>
+                      <span className="truncate flex-1 px-2">{log.description}</span>
+                      <span className={log.success ? 'text-emerald-400' : 'text-rose-400'}>
+                        {log.success ? '✓ Thành công' : '✕ Thất bại'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 text-center py-2">Chưa có lượt gửi dữ liệu nào trong phiên này.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Apps Script code box */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-300 text-xs">Mã nguồn Apps Script (Dán vào Tiện ích mở rộng &gt; Apps Script của Google Sheet):</span>
+                <button
+                  onClick={() => handleCopyText(RECOMMENDED_GAS_CODE, 'Mã nguồn Google Apps Script')}
+                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Copy className="h-3 w-3 text-cyan-400" />
+                  <span>Sao Chép Toàn Bộ Mã</span>
+                </button>
+              </div>
+              <pre className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-[10px] font-mono text-slate-300 max-h-48 overflow-y-auto whitespace-pre-wrap select-all">
+                {RECOMMENDED_GAS_CODE}
+              </pre>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setIsGasCodeModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

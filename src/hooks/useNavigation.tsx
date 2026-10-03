@@ -6,6 +6,7 @@ export type AppView =
   | 'register'
   | 'student_dashboard'
   | 'teacher_dashboard'
+  | 'admin_dashboard'
   | 'knowledge_map'
   | 'topic_detail'
   | 'english_bio'
@@ -48,6 +49,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         'register',
         'student_dashboard',
         'teacher_dashboard',
+        'admin_dashboard',
         'knowledge_map',
         'topic_detail',
         'english_bio',

@@ -9,7 +9,7 @@
         "email": { "type": "string", "format": "email", "maxLength": 128 },
         "username": { "type": "string", "maxLength": 64 },
         "fullName": { "type": "string", "maxLength": 100 },
-        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "role": { "type": "string", "enum": ["teacher", "student", "admin"] },
         "avatarUrl": { "type": "string", "maxLength": 500 },
         "classIds": { "type": "array", "description": "IDs of classes enrolled in or managed" },
         "currentClassId": { "type": "string", "maxLength": 128 },
