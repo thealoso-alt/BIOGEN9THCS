@@ -53,7 +53,7 @@ export const BioBotPage: React.FC = () => {
         } else if (lower.includes('nguyên phân') || lower.includes('mitosis')) {
           botResponse = `Về quá trình nguyên phân, bạn có nhớ điểm khác biệt quan trọng nhất ở Kỳ giữa (Metaphase) không?\n\n💡 Gợi ý: Hãy quan sát cách các nhiễm sắc thể kép tập trung trên mặt phẳng xích đạo của thoi vô sắc (thành 1 hàng hay 2 hàng)?`;
         } else if (lower.includes('đáp án') || lower.includes('kết quả')) {
-          botResponse = `Tư duy của bạn rất sát rồi đấy! Cụ thể trong chương trình Sinh học 9: Một phân tử DNA mẹ tự nhân đôi k lần sẽ tạo ra 2^k phân tử DNA con, trong đó luôn có đúng 2 phân tử DNA mang 1 mạch cũ của DNA mẹ.`;
+          botResponse = `Tư duy của bạn rất sát rồi đấy! Cụ thể trong chương trình Sinh học 9: Một phân tử DNA mẹ tự nhân đôi k lần sẽ tạo ra 2ᵏ phân tử DNA con, trong đó luôn có đúng 2 phân tử DNA mang 1 mạch cũ của DNA mẹ.`;
         } else {
           botResponse = `Một câu hỏi thú vị! Để giải quyết vấn đề này theo phương pháp tư duy Sinh học 9:\n\n• Bước 1: Hãy xác định đối tượng đang ở cấp độ phân tử (DNA/RNA/Protein) hay cấp độ tế bào (Nhiễm sắc thể)?\n• Bước 2: Theo bạn hiện tượng này tuân theo quy luật nào đã học?`;
         }

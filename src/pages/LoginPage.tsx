@@ -265,23 +265,6 @@ export const LoginPage: React.FC = () => {
             Đăng ký tài khoản Giáo viên ngay
           </button>
         </div>
-
-        {/* Cổng Quản trị viên Hệ thống */}
-        <div className="mt-4 pt-3 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIdentifier('admin');
-              setPassword('admin');
-              setErrorMsg(null);
-            }}
-            className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
-            title="Đăng nhập tài khoản Quản trị viên Hệ thống (admin/admin)"
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Đăng nhập Cổng Quản trị viên (admin)</span>
-          </button>
-        </div>
       </div>
 
       {/* Forgot Password Dialog */}

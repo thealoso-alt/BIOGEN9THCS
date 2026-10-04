@@ -3,6 +3,7 @@ import { UserProfile, UserRole, ClassRoom, StudentAccount, UserAccountCredential
 import { StudentTopicProgress } from '../types/genetics';
 import { DEMO_CLASSES, DEMO_PROGRESS, INITIAL_ACCOUNTS, DEMO_STUDENT } from '../data/mockSeedData';
 import { createFreshProgress } from '../data/progressUtils';
+import { GENETICS_TOPICS } from '../data/topicsData';
 import {
   generateStudentUsername,
   generateStudentPassword,
@@ -532,11 +533,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentClassId: foundClass.id,
       };
       setUser(updatedUser);
+
+      const matchedAcc = accounts.find(a => a.uid === user.uid);
+      if (matchedAcc) {
+        const updatedAcc: UserAccountCredential = {
+          ...matchedAcc,
+          classIds: [...user.classIds, foundClass.id],
+          currentClassId: foundClass.id,
+        };
+        saveSingleAccountToCloud(updatedAcc).catch(err => console.warn('Could not update user account in cloud:', err));
+        setAccounts(prev => prev.map(a => a.uid === user.uid ? updatedAcc : a));
+      }
+
+      // Tự động đồng bộ tài khoản học sinh đã tham gia lớp lên Google Sheet (Sheet: HocSinh)
+      syncStudentsToGoogleSheet([{
+        studentCode: user.studentCode || (user.uid.startsWith('student_') ? `HS-${user.uid.slice(-6)}` : 'HS-GUEST'),
+        fullName: user.fullName || 'Học sinh',
+        username: user.username || 'hocsinh',
+        password: matchedAcc?.password || user.initialPassword || '123456',
+        classCode: foundClass.code,
+        className: foundClass.name,
+        teacherCode: foundClass.teacherCode || '',
+        email: user.email || '',
+        notes: `Tham gia lớp ${foundClass.name} (${foundClass.code})`,
+        createdAt: new Date().toISOString(),
+      }]).catch(err => console.warn('Could not auto-sync joined student to Google Sheet:', err));
+
       // update class student count and ids
+      const updatedClass = {
+        ...foundClass,
+        studentCount: foundClass.studentCount + 1,
+        studentIds: [...foundClass.studentIds, user.uid],
+      };
+      saveClassToCloud(updatedClass).catch(err => console.warn('Could not update class in cloud:', err));
+
       setClasses(prev =>
         prev.map(c =>
           c.id === foundClass.id
-            ? { ...c, studentCount: c.studentCount + 1, studentIds: [...c.studentIds, user.uid] }
+            ? updatedClass
             : c
         )
       );
@@ -575,9 +609,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // Ghi nhận tiến độ và kết quả học tập vào Google Sheet (Sheet: KetQuaHocTap)
-    if (user && (partial.practiceScore !== undefined || (xpEarned && xpEarned > 0))) {
-      const assignedClass = classes.find(c => user.classIds?.includes(c.id));
+    // Tự động đồng bộ tiến độ và kết quả học tập của học sinh lên Google Sheet (Sheet: KetQuaHocTap)
+    if (user && (partial.practiceScore !== undefined || partial.progressPercent !== undefined || (xpEarned && xpEarned > 0))) {
+      const assignedClass = classes.find(c => (user.currentClassId && c.id === user.currentClassId) || (user.classIds && user.classIds.includes(c.id)));
+      const topicInfo = GENETICS_TOPICS.find(t => t.id === topicId);
       syncProgressToGoogleSheet({
         timestamp: new Date().toISOString(),
         studentCode: user.studentCode || (user.uid.startsWith('student_') ? `HS-${user.uid.slice(-6)}` : 'HS-GUEST'),
@@ -586,13 +621,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         classCode: assignedClass?.code || 'BIO9',
         teacherCode: assignedClass?.teacherCode || '',
         topicId,
-        topicTitle: topicId.toUpperCase(),
-        activityType: 'practice_10_questions',
-        score: partial.practiceScore || 0,
+        topicTitle: topicInfo?.titleVi || topicId.toUpperCase(),
+        activityType: partial.practiceScore !== undefined ? 'practice_10_questions' : 'model_exploration',
+        score: partial.practiceScore !== undefined ? partial.practiceScore : (partial.progressPercent || 100),
         maxScore: 100,
-        correctCount: Math.round(((partial.practiceScore || 0) / 100) * 10),
+        correctCount: partial.practiceScore !== undefined ? Math.round((partial.practiceScore / 100) * 10) : 10,
         totalQuestions: 10,
-        xpEarned,
+        xpEarned: xpEarned || 0,
       }).catch(err => console.warn('Could not sync progress to Google Sheet:', err));
     }
   };
@@ -829,6 +864,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (targetAcc) {
       const updatedAcc = { ...targetAcc, password: newPassword.trim(), initialPassword: newPassword.trim() };
       saveSingleAccountToCloud(updatedAcc).catch(err => console.warn('Could not update password in cloud:', err));
+
+      // Tự động đồng bộ mật khẩu học sinh mới cập nhật lên Google Sheet (Sheet: HocSinh)
+      const targetClass = classes.find(c => targetAcc.classIds?.includes(c.id));
+      syncStudentsToGoogleSheet([{
+        studentCode: targetAcc.studentCode || `HS-${targetAcc.uid.slice(-6)}`,
+        fullName: targetAcc.fullName,
+        username: targetAcc.username,
+        password: newPassword.trim(),
+        classCode: targetClass?.code || 'BIO9',
+        className: targetClass?.name || 'Lớp Sinh học',
+        teacherCode: targetClass?.teacherCode || '',
+        email: targetAcc.email || '',
+        notes: 'Đổi mật khẩu mới qua hệ thống',
+        createdAt: targetAcc.createdAt || new Date().toISOString(),
+      }]).catch(err => console.warn('Could not sync updated password to Google Sheet:', err));
     }
     setAccounts(prev =>
       prev.map(acc =>

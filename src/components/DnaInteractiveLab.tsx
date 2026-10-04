@@ -199,7 +199,7 @@ export const DNA_INSPECTION_PARTS: Record<string, ModelSubpartDetail> = {
     nameEn: 'Sugar-Phosphate Backbone',
     category: 'Khung phân tử DNA',
     parentModel: 'Mô hình Không gian DNA 3D',
-    structure: 'Gồm các gốc phosphate (PO4³⁻) và đường deoxyribose (C5H10O4) liên kết xen kẽ qua liên kết cộng hóa trị phosphodiester.',
+    structure: 'Gồm các gốc phosphate (PO₄³⁻) và đường deoxyribose (C₅H₁₀O₄) liên kết xen kẽ qua liên kết cộng hóa trị phosphodiester.',
     functionRole: 'Tạo khung bảo vệ vững chắc cho các bazơ nitơ ở phía trong, mang điện tích âm giúp DNA liên kết với Histone.',
     keyFact: 'Hai mạch chạy song song ngược chiều (antiparallel: 5\'→3\' và 3\'→5\').',
     colorHex: '#0284c7'

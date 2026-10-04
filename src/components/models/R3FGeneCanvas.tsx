@@ -12,7 +12,7 @@ const GENE_DETAILS: Record<string, ModelSubpartDetail> = {
     nameEn: 'Adenine Nucleotide',
     category: 'Nitrogenous Base · Purine',
     parentModel: 'Cấu trúc Phân tử DNA / Gene',
-    structure: 'Gồm gốc Phosphate (C5\'), đường Deoxyribose (C5H10O4) và bazơ Adenine (Purine vòng kép 2 dị vòng).',
+    structure: 'Gồm gốc Phosphate (C5\'), đường Deoxyribose (C₅H₁₀O₄) và bazơ Adenine (Purine vòng kép 2 dị vòng).',
     functionRole: 'Lưu trữ thông tin di truyền, tạo 2 liên kết hydrogen đặc hiệu bắt cặp bổ sung với Thymine (A = T).',
     keyFact: 'A chiếm tỷ lệ đúng bằng T theo NTBS (A = T; A + G = T + C).',
     colorHex: '#ef4444'
@@ -52,7 +52,7 @@ const GENE_DETAILS: Record<string, ModelSubpartDetail> = {
   },
   backbone_deoxyribose: {
     id: 'backbone_deoxyribose',
-    name: 'Đường Deoxyribose (C5H10O4)',
+    name: 'Đường Deoxyribose (C₅H₁₀O₄)',
     nameEn: 'Deoxyribose Sugar',
     category: 'Khung phân tử DNA',
     parentModel: 'Cấu trúc Phân tử DNA / Gene',
@@ -63,11 +63,11 @@ const GENE_DETAILS: Record<string, ModelSubpartDetail> = {
   },
   backbone_phosphate: {
     id: 'backbone_phosphate',
-    name: 'Gốc Phosphate (PO4³⁻)',
+    name: 'Gốc Phosphate (PO₄³⁻)',
     nameEn: 'Phosphate Group',
     category: 'Khung phân tử DNA',
     parentModel: 'Cấu trúc Phân tử DNA / Gene',
-    structure: 'Gốc axit photphoric tích điện âm mạnh ở điều kiện pH sinh lý, gắn vào C5\' của đường qua liên kết este.',
+    structure: 'Gốc axit photphoric (H₃PO₄) tích điện âm mạnh ở điều kiện pH sinh lý, gắn vào C5\' của đường qua liên kết este.',
     functionRole: 'Tạo liên kết cộng hóa trị phosphodiester giữa 2 nucleotide kế tiếp, mang điện tích âm giúp DNA hòa tan và bền vững.',
     keyFact: 'Tích điện âm cho toàn bộ chuỗi DNA, giúp tương tác tĩnh điện với protein Histone kiềm tính trong nhiễm sắc thể.',
     colorHex: '#6366f1'

@@ -257,7 +257,7 @@ const DEFAULT_TOPIC_VIDEOS: Record<string, TopicVideoItem[]> = {
 interface TopicVideoLibraryProps {
   topicId: string;
   topicTitle: string;
-  userRole?: 'teacher' | 'student';
+  userRole?: 'teacher' | 'student' | 'admin';
   userName?: string;
   onNavigateTo3D?: () => void;
 }
@@ -357,7 +357,9 @@ export const TopicVideoLibrary: React.FC<TopicVideoLibraryProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Role preview switcher for testing
-  const [previewRole, setPreviewRole] = useState<'teacher' | 'student'>(userRole);
+  const [previewRole, setPreviewRole] = useState<'teacher' | 'student'>(
+    userRole === 'student' ? 'student' : 'teacher'
+  );
 
   // Re-parse URL whenever input changes
   useEffect(() => {

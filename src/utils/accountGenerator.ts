@@ -1,3 +1,5 @@
+import * as XLSX from 'xlsx';
+
 /**
  * Utilities for Vietnamese text processing, username and password generation,
  * and account export for BIOGEN 9.
@@ -81,6 +83,12 @@ export function generateStudentPassword(
   return `${prefix}${symbol}${digits}`;
 }
 
+export interface ParsedStudent {
+  fullName: string;
+  email?: string;
+  notes?: string;
+}
+
 /**
  * Parses raw text pasted by teachers.
  * Handles formats:
@@ -89,7 +97,7 @@ export function generateStudentPassword(
  * 3. "Nguyễn Minh Anh, 9A1, hocsinh1@gmail.com"
  * 4. Tab-separated from Excel copy
  */
-export function parseRawStudentList(rawText: string): Array<{ fullName: string; email?: string; notes?: string }> {
+export function parseRawStudentList(rawText: string): ParsedStudent[] {
   if (!rawText || !rawText.trim()) return [];
 
   const lines = rawText
@@ -191,4 +199,195 @@ export function exportAccountsToCsv(
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+export interface StudentExportItem {
+  stt?: number;
+  studentCode?: string;
+  fullName: string;
+  username: string;
+  password?: string;
+  initialPassword?: string;
+  className: string;
+  classCode?: string;
+  teacherName?: string;
+  teacherCode?: string;
+  email?: string;
+  xp?: number;
+  level?: number;
+  createdAt?: string;
+}
+
+/**
+ * Exports students to a true Microsoft Excel (.xlsx) file with styled columns
+ */
+export function exportStudentsToExcel(
+  students: StudentExportItem[],
+  fileName = 'Danh_sach_hoc_sinh.xlsx'
+): void {
+  const rows = students.map((s, idx) => ({
+    'STT': s.stt ?? idx + 1,
+    'Mã học sinh': s.studentCode || '',
+    'Họ và tên': s.fullName,
+    'Tên đăng nhập (Username)': s.username,
+    'Mật khẩu khởi tạo': s.password || s.initialPassword || '123456',
+    'Lớp học': s.className,
+    'Mã tham gia lớp': s.classCode || '',
+    'Giáo viên phụ trách': s.teacherName || '',
+    'Email học sinh': s.email || '',
+    'Điểm tích lũy (XP)': s.xp ?? 0,
+    'Cấp bậc': s.level ?? 1,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },  // STT
+    { wch: 14 }, // Mã học sinh
+    { wch: 25 }, // Họ và tên
+    { wch: 20 }, // Tên đăng nhập
+    { wch: 18 }, // Mật khẩu
+    { wch: 12 }, // Lớp học
+    { wch: 15 }, // Mã lớp
+    { wch: 22 }, // Giáo viên
+    { wch: 25 }, // Email
+    { wch: 18 }, // XP
+    { wch: 12 }, // Cấp bậc
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách học sinh');
+  XLSX.writeFile(workbook, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
+}
+
+/**
+ * Downloads a sample Excel file (.xlsx) template for teachers to fill in
+ */
+export function exportSampleStudentExcelTemplate(): void {
+  const sampleData = [
+    {
+      'STT': 1,
+      'Họ và tên': 'Nguyễn Minh Anh',
+      'Email (tùy chọn)': 'minhanh@student.edu.vn',
+      'Ghi chú': 'Học sinh giỏi',
+    },
+    {
+      'STT': 2,
+      'Họ và tên': 'Trần Bảo Nam',
+      'Email (tùy chọn)': 'baonam@student.edu.vn',
+      'Ghi chú': '',
+    },
+    {
+      'STT': 3,
+      'Họ và tên': 'Lê Thu Trang',
+      'Email (tùy chọn)': '',
+      'Ghi chú': 'Lớp phó học tập',
+    },
+    {
+      'STT': 4,
+      'Họ và tên': 'Hoàng Gia Bảo',
+      'Email (tùy chọn)': '',
+      'Ghi chú': '',
+    },
+    {
+      'STT': 5,
+      'Họ và tên': 'Phạm Thùy Linh',
+      'Email (tùy chọn)': '',
+      'Ghi chú': '',
+    },
+  ];
+
+  const worksheet = XLSX.utils.json_to_sheet(sampleData);
+  worksheet['!cols'] = [
+    { wch: 8 },
+    { wch: 26 },
+    { wch: 28 },
+    { wch: 22 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Mẫu danh sách HS');
+  XLSX.writeFile(workbook, 'Mau_nhap_danh_sach_hoc_sinh.xlsx');
+}
+
+/**
+ * Automatically parses an Excel file (.xlsx, .xls) or CSV/text file
+ * and extracts student names, email, and notes.
+ */
+export async function parseExcelOrCsvFile(file: File): Promise<ParsedStudent[]> {
+  const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+  if (isExcel) {
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) return [];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rawRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 }) as any[][];
+    if (!rawRows || rawRows.length === 0) return [];
+
+    let headerRowIdx = -1;
+    let nameColIdx = 0;
+    let emailColIdx = -1;
+    let notesColIdx = -1;
+
+    for (let r = 0; r < Math.min(rawRows.length, 10); r++) {
+      const row = rawRows[r];
+      if (!Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const val = String(row[c] || '').toLowerCase().trim();
+        if (
+          val.includes('họ và tên') ||
+          val.includes('họ tên') ||
+          val.includes('tên học sinh') ||
+          val === 'họ tên' ||
+          val === 'tên'
+        ) {
+          headerRowIdx = r;
+          nameColIdx = c;
+          break;
+        }
+      }
+      if (headerRowIdx !== -1) {
+        for (let c = 0; c < row.length; c++) {
+          const val = String(row[c] || '').toLowerCase().trim();
+          if (val.includes('email') || val.includes('thư điện tử')) {
+            emailColIdx = c;
+          } else if (
+            val.includes('ghi chú') ||
+            val.includes('note') ||
+            val.includes('sđt') ||
+            val.includes('điện thoại')
+          ) {
+            notesColIdx = c;
+          }
+        }
+        break;
+      }
+    }
+
+    const startRow = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
+    const parsed: ParsedStudent[] = [];
+
+    for (let r = startRow; r < rawRows.length; r++) {
+      const row = rawRows[r];
+      if (!Array.isArray(row) || row.length === 0) continue;
+      const rawName = String(row[nameColIdx] || '').trim();
+      const cleanName = cleanStudentName(rawName);
+      if (!cleanName || cleanName.length < 2) continue;
+
+      const email = emailColIdx !== -1 && row[emailColIdx] ? String(row[emailColIdx]).trim() : undefined;
+      const notes = notesColIdx !== -1 && row[notesColIdx] ? String(row[notesColIdx]).trim() : undefined;
+
+      parsed.push({
+        fullName: cleanName,
+        email: email && email.includes('@') ? email : undefined,
+        notes,
+      });
+    }
+
+    return parsed;
+  } else {
+    // CSV or text
+    const text = await file.text();
+    return parseRawStudentList(text);
+  }
 }

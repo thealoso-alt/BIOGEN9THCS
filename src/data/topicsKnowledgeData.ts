@@ -20,10 +20,10 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         heading: '1. Tính chất hóa học & Nguyên tắc đa phân của DNA',
         paragraphs: [
           'Deoxyribonucleic acid (DNA) là đại phân tử hữu cơ cấu tạo theo nguyên tắc đa phân. Đơn phân là các nucleotide gồm 4 loại: Adenine (A), Thymine (T), Guanine (G) và Cytosine (C).',
-          'Mỗi nucleotide gồm 3 thành phần: Nhóm phosphate (H3PO4 / PO4³⁻), đường deoxyribose (C5H10O4) và một trong 4 loại nitrogenous base (A, T, G, C). Trong đó A và G có kích thước lớn hơn (nhóm Purine - vòng kép), T và C có kích thước bé hơn (nhóm Pyrimidine - vòng đơn).',
+          'Mỗi nucleotide gồm 3 thành phần: Nhóm phosphate (H₃PO₄ / PO₄³⁻), đường deoxyribose (C₅H₁₀O₄) và một trong 4 loại nitrogenous base (A, T, G, C). Trong đó A và G có kích thước lớn hơn (nhóm Purine - vòng kép), T và C có kích thước bé hơn (nhóm Pyrimidine - vòng đơn).',
         ],
         bulletPoints: [
-          'Độ dài mỗi nucleotide: 3,4 Å (1 Å = 0,1 nm = 10^-4 μm).',
+          'Độ dài mỗi nucleotide: 3,4 Å (1 Å = 0,1 nm = 10⁻⁴ μm).',
           'Khối lượng phân tử trung bình của 1 nucleotide: 300 amu (đvC).',
           'Các nucleotide trên cùng một mạch liên kết với nhau bằng liên kết cộng hoá trị phosphodiester bền vững giữa đường deoxyribose của nu này với nhóm phosphate của nu kế tiếp.',
         ],
@@ -87,7 +87,7 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         heading: '3. Mã di truyền (Genetic Code)',
         paragraphs: [
           'Mã di truyền là mã bộ ba (Codon): Cứ 3 nucleotide kế tiếp trên mạch mARN quy định 1 amino acid trên chuỗi polypeptide.',
-          'Có 4^3 = 64 bộ ba mã hóa, trong đó:',
+          'Có 4³ = 64 bộ ba mã hóa, trong đó:',
         ],
         bulletPoints: [
           'Bộ ba mở đầu: 5\' AUG 3\' (mã hóa amino acid Methionine ở sinh vật nhân thực).',
@@ -104,7 +104,7 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         heading: '1. Thành phần hóa học và cấu trúc của RNA',
         paragraphs: [
           'Ribonucleic acid (RNA) là đại phân tử hữu cơ cấu tạo theo nguyên tắc đa phân. Đơn phân là ribonucleotide gồm 4 loại: Adenine (A), Uracil (U), Guanine (G) và Cytosine (C).',
-          'Điểm khác biệt căn bản so với DNA: RNA cấu tạo mạch đơn; đường là Ribose (C5H10O5); nitrogenous base Uracil (U) thay thế cho Thymine (T).',
+          'Điểm khác biệt căn bản so với DNA: RNA cấu tạo mạch đơn; đường là Ribose (C₅H₁₀O₅); nitrogenous base Uracil (U) thay thế cho Thymine (T).',
         ],
       },
       {
@@ -125,7 +125,7 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         heading: '1. Thành phần hóa học và tính đa dạng của Protein',
         paragraphs: [
           'Protein là hợp chất hữu cơ quan trọng nhất cấu thành sự sống. Cấu tạo theo nguyên tắc đa phân, đơn phân là các amino acid. Tự nhiên có hơn 20 loại amino acid khác nhau.',
-          'Mỗi amino acid gồm 3 nhóm: Nhóm amin (-NH2), nhóm cacboxyl (-COOH) và gốc R đặc trưng. Các amino acid nối với nhau bằng liên kết peptide (-CO-NH-) giải phóng 1 phân tử nước.',
+          'Mỗi amino acid gồm 3 nhóm: Nhóm amin (-NH₂), nhóm cacboxyl (-COOH) và gốc R đặc trưng. Các amino acid nối với nhau bằng liên kết peptide (-CO-NH-) giải phóng 1 phân tử nước (H₂O).',
         ],
       },
       {
@@ -175,10 +175,10 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         formulaBox: {
           title: 'Công thức toán sinh Nhân đôi DNA chuẩn SGK',
           formulas: [
-            'Từ 1 DNA ban đầu qua k lần nhân đôi: Tạo 2^k phân tử DNA con',
-            'Số phân tử DNA con chứa hoàn toàn nguyên liệu mới: 2^k - 2',
-            'Số nu tự do môi trường cung cấp: N_mt = N × (2^k - 1)',
-            'Số nu từng loại môi trường cung cấp: A_mt = T_mt = A × (2^k - 1); G_mt = C_mt = G × (2^k - 1)',
+            'Từ 1 DNA ban đầu qua k lần nhân đôi: Tạo 2ᵏ phân tử DNA con',
+            'Số phân tử DNA con chứa hoàn toàn nguyên liệu mới: 2ᵏ - 2',
+            'Số nu tự do môi trường cung cấp: N_mt = N × (2ᵏ - 1)',
+            'Số nu từng loại môi trường cung cấp: A_mt = T_mt = A × (2ᵏ - 1); G_mt = C_mt = G × (2ᵏ - 1)',
           ],
         },
       },
@@ -259,8 +259,18 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         heading: '2. Nguyên nhân & Vai trò của Đột biến Gene',
         paragraphs: [
           'Nguyên nhân: Do tác nhân vật lý (tia tử ngoại UV, phóng xạ), tác nhân hóa học (5-BU, EMS) hoặc rối loạn sinh lý nội bào trong quá trình nhân đôi DNA.',
+          'Tần số đột biến tự nhiên: Trong điều kiện tự nhiên không có tác nhân đột biến nhân tạo, tần số đột biến của một gene riêng rẽ là rất thấp, thường chỉ dao động trong khoảng từ 10⁻⁶ đến 10⁻⁴ (tức là 1 trong 1.000.000 đến 1 trong 10.000 giao tử mang gene đột biến). Tuy nhiên, do sinh vật có số lượng gene rất lớn (hàng vạn gene) nên tổng số đột biến xuất hiện trong mỗi thế hệ lại khá đáng kể.',
           'Vai trò: Là nguồn nguyên liệu sơ cấp dồi dào cho tiến hóa và chọn giống. Mặc dù phần lớn đột biến có hại cho cá thể, một số đột biến đem lại tính trạng có lợi hoặc trung tính thích nghi với môi trường mới.',
         ],
+        formulaBox: {
+          title: 'Công thức & Tần số Đột biến Gene',
+          formulas: [
+            'Tần số đột biến tự nhiên của 1 gene: f = 10⁻⁶ – 10⁻⁴',
+            'Đột biến thay thế 1 cặp nu: Số liên kết H thay đổi 0, +1 hoặc -1 liên kết',
+            'Thay cặp (A-T) bằng (G-C): Tăng 1 liên kết H (2 → 3)',
+            'Thay cặp (G-C) bằng (A-T): Giảm 1 liên kết H (3 → 2)',
+          ],
+        },
       },
     ],
   },
@@ -335,9 +345,9 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
         formulaBox: {
           title: 'Công thức toán sinh Nguyên phân',
           formulas: [
-            'Số tế bào con tạo thành sau k lần nguyên phân: 2^k',
-            'Số NST đơn môi trường cung cấp: 2n × (2^k - 1)',
-            'Số NST đơn trong các tế bào con hoàn toàn mới: 2n × (2^k - 2)',
+            'Số tế bào con tạo thành sau k lần nguyên phân: 2ᵏ',
+            'Số NST đơn môi trường cung cấp: 2n × (2ᵏ - 1)',
+            'Số NST đơn trong các tế bào con hoàn toàn mới: 2n × (2ᵏ - 2)',
           ],
         },
       },
@@ -471,9 +481,9 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
             'Lai 1 cặp dị hợp: Aa ✕ Aa ➔ KG: 1/4 AA : 2/4 Aa : 1/4 aa (KH: 3/4 trội : 1/4 lặn)',
             'Lai phân tích: Aa ✕ aa ➔ 1/2 Aa (trội) : 1/2 aa (lặn)',
             'Lai 2 cặp dị hợp độc lập: AaBb ✕ AaBb ➔ KH: (3 : 1)(3 : 1) = 9 : 3 : 3 : 1',
-            'Số loại giao tử của cơ thể dị hợp n cặp gene: 2^n',
-            'Số loại tổ hợp giao tử ở F2 khi lai 2 cơ thể dị hợp n cặp gene: 4^n',
-            'Số loại kiểu hình ở F2: 2^n (với tính trạng trội hoàn toàn)',
+            'Số loại giao tử của cơ thể dị hợp n cặp gene: 2ⁿ',
+            'Số loại tổ hợp giao tử ở F2 khi lai 2 cơ thể dị hợp n cặp gene: 4ⁿ',
+            'Số loại kiểu hình ở F2: 2ⁿ (với tính trạng trội hoàn toàn)',
           ],
         },
       },

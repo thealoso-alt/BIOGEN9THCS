@@ -18,6 +18,7 @@ import { TopicModelRenderer } from '../../components/models/TopicModelRenderer';
 import { TopicVideoLibrary } from '../../components/materials/TopicVideoLibrary';
 import { TopicKnowledgeViewer } from '../../components/knowledge/TopicKnowledgeViewer';
 import { syncProgressToGoogleSheet } from '../../services/googleSheetService';
+import { formatBioFormula } from '../../utils/formulaFormatter';
 import {
   Compass,
   Play,
@@ -871,7 +872,7 @@ export const TopicDetailPage: React.FC = () => {
                     </div>
 
                     <p className="text-xs sm:text-sm font-bold text-slate-900 mb-3.5">
-                      {q.question}
+                      {formatBioFormula(q.question)}
                     </p>
 
                     {/* 4 Options if multiple_choice */}
@@ -902,7 +903,7 @@ export const TopicDetailPage: React.FC = () => {
                               onClick={() => setUserAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
                               className={`p-3 rounded-xl border text-left text-xs transition-all flex items-center justify-between gap-2 shadow-2xs ${optionStyle}`}
                             >
-                              <span>{opt}</span>
+                              <span>{formatBioFormula(opt)}</span>
                               {submittedQuestions[q.id] && isOptionCorrect && (
                                 <Check className="h-4 w-4 text-emerald-600 shrink-0" />
                               )}
@@ -915,7 +916,7 @@ export const TopicDetailPage: React.FC = () => {
                     {submittedQuestions[q.id] && (
                       <div className="mt-3.5 pt-2.5 border-t border-slate-200 text-xs text-slate-700">
                         <strong className="text-sky-700">Giải thích chi tiết:</strong>{' '}
-                        {q.explanation}
+                        {formatBioFormula(q.explanation)}
                       </div>
                     )}
                   </div>
@@ -962,7 +963,7 @@ export const TopicDetailPage: React.FC = () => {
                     </div>
 
                     <p className="text-xs sm:text-sm font-bold text-slate-900 mb-3">
-                      {q.question}
+                      {formatBioFormula(q.question)}
                     </p>
 
                     <div className="flex items-center gap-3">
@@ -996,7 +997,7 @@ export const TopicDetailPage: React.FC = () => {
                       <div className="mt-3.5 pt-2.5 border-t border-slate-200 text-xs text-slate-700">
                         <strong className="text-sky-700">Đáp án chuẩn:</strong>{' '}
                         {(q as TrueFalseQuestion).correctAnswer ? 'ĐÚNG' : 'SAI'}
-                        <p className="text-[11px] text-slate-500 mt-0.5 italic">{q.explanation}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 italic">{formatBioFormula(q.explanation)}</p>
                       </div>
                     )}
                   </div>

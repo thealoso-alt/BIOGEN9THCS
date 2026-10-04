@@ -4,6 +4,9 @@ import { ClassRoom, StudentAccount } from '../../types/auth';
 import {
   parseRawStudentList,
   exportAccountsToCsv,
+  exportStudentsToExcel,
+  exportSampleStudentExcelTemplate,
+  parseExcelOrCsvFile,
   UsernamePattern,
   PasswordPattern,
   generateStudentUsername,
@@ -111,28 +114,35 @@ export const StudentBatchImportModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setErrorMsg(null);
 
-    const reader = new FileReader();
-    reader.onload = event => {
-      const text = event.target?.result as string;
-      if (text) {
+    try {
+      const parsed = await parseExcelOrCsvFile(file);
+      if (parsed.length > 0) {
+        const text = parsed.map((p, i) => `${i + 1}. ${p.fullName}${p.email ? `\t${p.email}` : ''}`).join('\n');
         setRawText(text);
         setInputMethod('paste'); // Switch to view parsed content
+      } else {
+        const text = await file.text();
+        setRawText(text);
+        setInputMethod('paste');
       }
-    };
-    reader.onerror = () => {
-      setErrorMsg('Không thể đọc tệp tin. Vui lòng thử lại hoặc dán văn bản trực tiếp.');
-    };
-    reader.readAsText(file);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Không thể đọc tệp Excel/CSV. Vui lòng kiểm tra lại định dạng tệp tin.');
+    }
   };
 
   const handleFillSample = () => {
     setRawText(SAMPLE_STUDENTS_TEXT);
     setErrorMsg(null);
+  };
+
+  const handleDownloadSampleExcel = () => {
+    exportSampleStudentExcelTemplate();
   };
 
   const handleDownloadSampleCsv = () => {
@@ -175,6 +185,22 @@ export const StudentBatchImportModal: React.FC<Props> = ({
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleExportExcel = () => {
+    if (!createdAccounts || !targetClass) return;
+    const formatted = createdAccounts.map((a, i) => ({
+      stt: i + 1,
+      studentCode: a.studentCode || `HS-${String(i + 1).padStart(4, '0')}`,
+      fullName: a.fullName,
+      username: a.username,
+      password: a.password,
+      className: targetClass.name,
+      classCode: targetClass.code,
+      teacherName: targetClass.teacherName || user?.fullName || 'Giáo viên',
+      email: a.email,
+    }));
+    exportStudentsToExcel(formatted, `Danh_sach_tai_khoan_lop_${targetClass.name.replace(/\s+/g, '_')}.xlsx`);
   };
 
   const handleExportCsv = () => {
@@ -338,25 +364,40 @@ export const StudentBatchImportModal: React.FC<Props> = ({
 
               {/* Action Cards for Distribution */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
-                  onClick={handleExportCsv}
-                  className="p-4 rounded-2xl border-2 border-emerald-200 bg-white hover:bg-emerald-50/50 hover:border-emerald-400 text-left transition-all group flex flex-col justify-between space-y-3 shadow-xs"
-                >
+                <div className="p-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50/30 text-left flex flex-col justify-between space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                      <Download className="h-5 w-5" />
+                    <div className="p-2 rounded-xl bg-emerald-600 text-white">
+                      <FileSpreadsheet className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 uppercase bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Excel / CSV
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                      Excel .XLSX
                     </span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-900 text-sm">1. Tải File Excel / CSV</h4>
+                    <h4 className="font-bold text-slate-900 text-sm">1. Tải Danh Sách HS (Excel)</h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Bảng mã UTF-8 đầy đủ dấu tiếng Việt, lưu trữ trên máy tính
+                      Bảng tính chuẩn .xlsx kèm STT, Họ tên, Username, Mật khẩu
                     </p>
                   </div>
-                </button>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Tải file Excel (.xlsx)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      className="py-2 px-2.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer"
+                      title="Tải dạng CSV"
+                    >
+                      .CSV
+                    </button>
+                  </div>
+                </div>
 
                 <button
                   onClick={handlePrintSlips}
@@ -479,14 +520,23 @@ export const StudentBatchImportModal: React.FC<Props> = ({
                     <span className="text-xs text-slate-500">({parsedStudents.length} học sinh đã nhận dạng)</span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={handleFillSample}
                       className="px-2.5 py-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 flex items-center gap-1 transition-colors"
                     >
                       <Sparkles className="h-3 w-3" />
-                      <span>Điền mẫu 10 học sinh</span>
+                      <span>Điền mẫu 10 HS</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadSampleExcel}
+                      className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 flex items-center gap-1 transition-colors"
+                      title="Tải tệp mẫu Excel .xlsx để điền danh sách học sinh"
+                    >
+                      <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
+                      <span>Mẫu Excel (.xlsx)</span>
                     </button>
                     <button
                       type="button"
@@ -494,7 +544,7 @@ export const StudentBatchImportModal: React.FC<Props> = ({
                       className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1 transition-colors"
                     >
                       <Download className="h-3 w-3" />
-                      <span>File mẫu CSV</span>
+                      <span>Mẫu CSV</span>
                     </button>
                   </div>
                 </div>
@@ -523,7 +573,7 @@ export const StudentBatchImportModal: React.FC<Props> = ({
                     }`}
                   >
                     <Upload className="h-3.5 w-3.5" />
-                    <span>Tải tệp tin (.txt, .csv)</span>
+                    <span>Tải tệp Excel / CSV (.xlsx, .xls, .csv)</span>
                   </button>
                 </div>
 
@@ -552,14 +602,21 @@ export const StudentBatchImportModal: React.FC<Props> = ({
                   </div>
                 ) : (
                   <div className="rounded-2xl border-2 border-dashed border-purple-200 bg-purple-50/30 p-8 text-center">
-                    <Upload className="h-8 w-8 text-purple-500 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-800">Kéo thả tệp CSV / Text hoặc chọn tệp từ máy tính</p>
-                    <p className="text-[11px] text-slate-500 mt-1 mb-4">Hỗ trợ tệp định dạng .csv hoặc .txt mã hóa UTF-8</p>
+                    <div className="flex items-center justify-center gap-2 mb-2 text-purple-600">
+                      <FileSpreadsheet className="h-8 w-8" />
+                      <Upload className="h-6 w-6" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-800">
+                      Kéo thả tệp Excel (.xlsx, .xls) hoặc CSV / Text từ máy tính
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1 mb-4">
+                      Hệ thống tự động đọc cột Họ và tên, Email, Ghi chú để tạo tài khoản
+                    </p>
                     <label className="inline-block px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl cursor-pointer shadow-xs">
-                      <span>Chọn tệp tin...</span>
+                      <span>Chọn tệp Excel / CSV...</span>
                       <input
                         type="file"
-                        accept=".csv,.txt"
+                        accept=".xlsx,.xls,.csv,.txt"
                         onChange={handleFileUpload}
                         className="hidden"
                       />

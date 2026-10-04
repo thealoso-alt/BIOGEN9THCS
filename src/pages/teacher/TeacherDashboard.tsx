@@ -6,7 +6,8 @@ import { DEMO_QUESTIONS } from '../../data/mockSeedData';
 import { QuestionItem, QuestionStatus, QuestionType, QuestionDifficulty } from '../../types/question';
 import { ClassRoom, StudentAccount } from '../../types/auth';
 import { StudentBatchImportModal } from '../../components/teacher/StudentBatchImportModal';
-import { exportAccountsToCsv, generateStudentPassword } from '../../utils/accountGenerator';
+import { exportAccountsToCsv, exportStudentsToExcel, generateStudentPassword } from '../../utils/accountGenerator';
+import { formatBioFormula } from '../../utils/formulaFormatter';
 import {
   subscribeToQuestionBank,
   saveQuestionToCloud,
@@ -21,6 +22,7 @@ import {
   syncTeacherToGoogleSheet,
   syncClassToGoogleSheet,
   syncStudentsToGoogleSheet,
+  syncQuestionToGoogleSheet,
   SyncLogItem,
 } from '../../services/googleSheetService';
 import {
@@ -131,67 +133,12 @@ export const TeacherDashboard: React.FC = () => {
   // Google Sheet Sync State
   const [syncLogs, setSyncLogs] = useState<SyncLogItem[]>(() => getSyncHistory());
   const [isGasCodeModalOpen, setIsGasCodeModalOpen] = useState(false);
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-
   useEffect(() => {
     const unsub = subscribeToSyncLogs(() => {
       setSyncLogs(getSyncHistory());
     });
     return () => unsub();
   }, []);
-
-  const handleSyncAllToGoogleSheet = async () => {
-    if (!user) return;
-    setIsSyncingAll(true);
-    try {
-      // 1. Sync Teacher
-      await syncTeacherToGoogleSheet({
-        teacherCode: user.teacherCode || `GV-${user.uid.slice(-6)}`,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        schoolName: user.schoolName,
-        registeredAt: user.createdAt || new Date().toISOString(),
-      });
-
-      // 2. Sync My Classes and their Students
-      for (const c of myClasses) {
-        await syncClassToGoogleSheet({
-          classId: c.id,
-          classCode: c.code,
-          className: c.name,
-          subject: c.subject,
-          schoolYear: c.schoolYear,
-          teacherCode: c.teacherCode || user.teacherCode || '',
-          teacherName: c.teacherName || user.fullName,
-          studentCount: c.studentCount,
-          createdAt: c.createdAt,
-        });
-
-        const stList = getStudentsByClass(c.id);
-        if (stList.length > 0) {
-          await syncStudentsToGoogleSheet(stList.map(s => ({
-            studentCode: s.studentCode || '',
-            fullName: s.fullName,
-            username: s.username,
-            password: s.password,
-            classCode: s.classCode,
-            className: s.className,
-            teacherCode: s.teacherCode || user.teacherCode || '',
-            email: s.email,
-            notes: s.notes,
-            createdAt: s.createdAt,
-          })));
-        }
-      }
-      triggerToast('Đã đồng bộ toàn bộ Giáo viên, Lớp học và Học sinh lên Google Sheet thành công!');
-    } catch (err) {
-      console.warn('Sync all error:', err);
-      triggerToast('Có lỗi khi đồng bộ lên Google Sheet. Vui lòng kiểm tra lại webhook.');
-    } finally {
-      setIsSyncingAll(false);
-    }
-  };
 
   // Student Search Query in Roster
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -291,6 +238,46 @@ export const TeacherDashboard: React.FC = () => {
       deleteStudent(student.uid, student.classId);
       triggerToast(`Đã xóa học sinh ${student.fullName} khỏi danh sách.`);
     }
+  };
+
+  const handleExportRosterExcel = (classId?: string) => {
+    let list: StudentAccount[] = [];
+    let fileName = 'Danh_sach_hoc_sinh';
+
+    if (classId && classId !== 'all') {
+      const targetC = classes.find(c => c.id === classId);
+      if (!targetC) return;
+      list = getStudentsByClass(classId);
+      fileName = `Danh_sach_hoc_sinh_lop_${targetC.name.replace(/\s+/g, '_')}`;
+    } else {
+      list = myClasses.flatMap(c => getStudentsByClass(c.id));
+      fileName = `Danh_sach_tat_ca_hoc_sinh_${(user?.fullName || 'giao_vien').replace(/\s+/g, '_')}`;
+    }
+
+    if (list.length === 0) {
+      alert('Chưa có học sinh nào trong danh sách để xuất file Excel.');
+      return;
+    }
+
+    const formatted = list.map((a, i) => {
+      const cls = classes.find(c => c.id === a.classId);
+      return {
+        stt: i + 1,
+        studentCode: a.studentCode || `HS-${String(i + 1).padStart(4, '0')}`,
+        fullName: a.fullName,
+        username: a.username,
+        password: a.password,
+        className: a.className || cls?.name || 'Chưa xếp lớp',
+        classCode: cls?.code || a.classCode || '',
+        teacherName: cls?.teacherName || user?.fullName || 'Giáo viên',
+        email: a.email,
+        xp: a.xp,
+        level: a.level,
+      };
+    });
+
+    exportStudentsToExcel(formatted, `${fileName}.xlsx`);
+    triggerToast(`Đã tải xuống file Excel danh sách ${list.length} học sinh (.xlsx)!`);
   };
 
   const handleExportRosterCsv = (classId: string) => {
@@ -562,6 +549,21 @@ export const TeacherDashboard: React.FC = () => {
 
     try {
       await saveQuestionToCloud(savedQuestion);
+
+      // Tự động đồng bộ câu hỏi lên Google Sheet (Sheet: NganHangCauHoi)
+      syncQuestionToGoogleSheet({
+        teacherCode: user?.teacherCode || 'GV-ONLINE',
+        teacherName: user?.fullName || 'Giáo viên',
+        questionId: savedQuestion.id,
+        topicId: savedQuestion.topicId,
+        type: savedQuestion.type,
+        question: savedQuestion.question,
+        correctAnswer: String(savedQuestion.correctAnswer),
+        difficulty: savedQuestion.difficulty,
+        status: savedQuestion.status,
+        updatedAt: savedQuestion.updatedAt,
+      }).catch((err: unknown) => console.warn('Could not auto-sync question to Google Sheet:', err));
+
       setQuestions(prev => {
         const idx = prev.findIndex(q => q.id === savedQuestion.id);
         if (idx >= 0) {
@@ -594,8 +596,20 @@ export const TeacherDashboard: React.FC = () => {
     );
     try {
       await saveQuestionToCloud(updated);
-      triggerToast('Đã xuất bản câu hỏi lên Cloud! Học sinh ở mọi thiết bị có thể làm ngay.');
-    } catch (err) {
+      syncQuestionToGoogleSheet({
+        teacherCode: user?.teacherCode || 'GV-ONLINE',
+        teacherName: user?.fullName || 'Giáo viên',
+        questionId: updated.id,
+        topicId: updated.topicId,
+        type: updated.type,
+        question: updated.question,
+        correctAnswer: String(updated.correctAnswer),
+        difficulty: updated.difficulty,
+        status: 'published',
+        updatedAt: updated.updatedAt,
+      }).catch((err: unknown) => console.warn('Could not auto-sync published question to Google Sheet:', err));
+      triggerToast('Đã xuất bản câu hỏi lên Cloud & tự động đồng bộ Google Sheets!');
+    } catch (err: unknown) {
       console.warn('Could not publish to cloud:', err);
     }
   };
@@ -829,23 +843,10 @@ export const TeacherDashboard: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              onClick={handleSyncAllToGoogleSheet}
-              disabled={isSyncingAll}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-950/40 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {isSyncingAll ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Đang đồng bộ...</span>
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Đồng bộ toàn bộ lên Sheet</span>
-                </>
-              )}
-            </button>
+            <div className="px-3.5 py-2.5 rounded-xl bg-slate-800/90 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Google Sheets: Tự động đồng bộ</span>
+            </div>
 
             <button
               onClick={() => setIsGasCodeModalOpen(true)}
@@ -1057,7 +1058,7 @@ export const TeacherDashboard: React.FC = () => {
                       <span className="text-slate-500 font-mono text-[11px]">Độ khó: {q.difficulty}</span>
                     </div>
 
-                    <p className="text-xs font-semibold text-white">{q.question}</p>
+                    <p className="text-xs font-semibold text-white">{formatBioFormula(q.question)}</p>
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-900 text-xs">
                       <button
@@ -1207,32 +1208,41 @@ export const TeacherDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => handleExportRosterCsv(selectedClassForRoster)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors"
-                  title="Tải tệp Excel / CSV để lưu trữ"
+                  onClick={() => handleExportRosterExcel(selectedClassForRoster)}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  title="Tải tệp Excel .xlsx chuẩn cho lớp này"
                 >
-                  <Download className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>Xuất Excel (.csv)</span>
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-white" />
+                  <span>Tải File Excel (.xlsx)</span>
+                </button>
+
+                <button
+                  onClick={() => handleExportRosterExcel()}
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Tải toàn bộ học sinh các lớp bạn phụ trách ra file Excel"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Tải Tất Cả Lớp (Excel)</span>
                 </button>
 
                 <button
                   onClick={() => handlePrintCards(selectedClassForRoster)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   title="In phiếu tài khoản cắt phát cho học sinh"
                 >
                   <Printer className="h-3.5 w-3.5 text-sky-400" />
-                  <span>In Thẻ Học Sinh</span>
+                  <span>In Thẻ HS</span>
                 </button>
 
                 <button
                   onClick={() => handleCopyZaloRoster(selectedClassForRoster)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   title="Sao chép văn bản gửi Zalo nhóm lớp"
                 >
                   <Copy className="h-3.5 w-3.5 text-purple-400" />
-                  <span>Sao Chép Zalo</span>
+                  <span>Copy Zalo</span>
                 </button>
               </div>
             </div>
@@ -1799,7 +1809,7 @@ export const TeacherDashboard: React.FC = () => {
 
                     {/* Question Prompt */}
                     <p className="text-sm font-bold text-white mb-3 leading-relaxed">
-                      {q.question}
+                      {formatBioFormula(q.question)}
                     </p>
 
                     {/* Options Grid */}
@@ -1820,7 +1830,7 @@ export const TeacherDashboard: React.FC = () => {
                           >
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-slate-400">{opt.id.replace('opt_', '').toUpperCase()}:</span>
-                              <span>{opt.text}</span>
+                              <span>{formatBioFormula(opt.text)}</span>
                             </div>
                             {isCorrect && (
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 whitespace-nowrap">
@@ -1893,12 +1903,17 @@ export const TeacherDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
               <button
-                onClick={() => handleExportRosterCsv(selectedClassForRoster)}
-                className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-600 text-left text-xs transition-colors space-y-1"
+                onClick={() => handleExportRosterExcel(selectedClassForRoster)}
+                className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500 text-left text-xs transition-colors space-y-1 cursor-pointer"
               >
-                <span className="font-bold text-white block">1. Danh Sách Tài Khoản Học Sinh</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white block">1. Tải Danh Sách Học Sinh (Excel)</span>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-800">
+                    .XLSX
+                  </span>
+                </div>
                 <span className="text-[11px] text-slate-400 block">
-                  Xuất tên đăng nhập, mật khẩu, mã lớp của {currentClassObj?.name}
+                  Xuất tên đăng nhập, mật khẩu, điểm XP, mã lớp của {currentClassObj?.name || 'lớp'}
                 </span>
               </button>
 
@@ -2075,7 +2090,7 @@ export const TeacherDashboard: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
             <h3 className="text-sm font-bold text-white">Chi tiết Câu hỏi Nháp</h3>
-            <p className="text-xs font-semibold text-slate-200">{previewQuestion.question}</p>
+            <p className="text-xs font-semibold text-slate-200">{formatBioFormula(previewQuestion.question)}</p>
             <div className="space-y-1.5">
               {previewQuestion.options.map(o => (
                 <div
@@ -2086,12 +2101,12 @@ export const TeacherDashboard: React.FC = () => {
                       : 'bg-slate-950 border border-slate-800 text-slate-400'
                   }`}
                 >
-                  {o.id.toUpperCase()}: {o.text} {o.id === previewQuestion.correctAnswer && '(Đáp án đúng)'}
+                  {o.id.toUpperCase()}: {formatBioFormula(o.text)} {o.id === previewQuestion.correctAnswer && '(Đáp án đúng)'}
                 </div>
               ))}
             </div>
             <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300">
-              <strong>Giải thích:</strong> {previewQuestion.explanation}
+              <strong>Giải thích:</strong> {formatBioFormula(previewQuestion.explanation)}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button

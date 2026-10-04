@@ -6,6 +6,8 @@ import {
   SoloChallengeQuestion,
   BattlePoolQuestion,
 } from '../../data/challengeQuestionsData';
+import { formatBioFormula } from '../../utils/formulaFormatter';
+import { syncProgressToGoogleSheet } from '../../services/googleSheetService';
 import {
   Swords,
   Clock,
@@ -74,6 +76,25 @@ export const ChallengesPage: React.FC = () => {
       const earnedXp = correctCount * 10 + (correctCount >= 12 ? 50 : 0);
       updateProgress('dna', {}, earnedXp);
       setSoloXpAwarded(true);
+
+      // Tự động đồng bộ kết quả Đấu trường Solo lên Google Sheet (Sheet: KetQuaHocTap)
+      const studentCode = user.studentCode || (user.role === 'student' ? `HS-${(user.uid || '').replace(/[^0-9]/g, '').slice(-6).padStart(6, '0')}` : 'HS-GUEST');
+      syncProgressToGoogleSheet({
+        timestamp: new Date().toISOString(),
+        studentCode,
+        fullName: user.fullName || user.username || 'Học sinh',
+        username: user.username || 'hocsinh',
+        classCode: (user as any).currentClassCode || (user as any).classCode || 'BIO9',
+        teacherCode: (user as any).teacherCode || 'GV-ONLINE',
+        topicId: 'solo_challenge',
+        topicTitle: 'Đấu trường Đơn Solo (15 câu hỏi)',
+        activityType: 'challenge_battle',
+        score: correctCount,
+        maxScore: 15,
+        correctCount: correctCount,
+        totalQuestions: 15,
+        xpEarned: earnedXp,
+      }).catch(err => console.warn('Could not auto-sync solo challenge to Google Sheet:', err));
     }
   };
 
@@ -354,6 +375,42 @@ export const ChallengesPage: React.FC = () => {
       if (user) {
         updateProgress('dna', {}, 200);
       }
+
+      // Tự động đồng bộ kết quả thi đấu đối kháng trực tiếp lên Google Sheet (Sheet: KetQuaHocTap)
+      const battleTotal = battleQuestions.length || 6;
+      syncProgressToGoogleSheet({
+        timestamp: new Date().toISOString(),
+        studentCode: 'HS-BATTLE-XANH',
+        fullName: student1Name || 'Học sinh Đội Xanh',
+        username: (student1Name || 'doixanh').toLowerCase().replace(/[^a-z0-9]/g, '') || 'doixanh',
+        classCode: 'BIO9',
+        teacherCode: 'GV-ONLINE',
+        topicId: 'live_battle_1v1',
+        topicTitle: `Đối kháng: ${student1Name} vs ${student2Name}`,
+        activityType: 'challenge_battle',
+        score: teamAScore,
+        maxScore: battleTotal * 10,
+        correctCount: Math.round(teamAScore / 10),
+        totalQuestions: battleTotal,
+        xpEarned: teamAScore * 2,
+      }).catch(err => console.warn('Could not auto-sync battle student 1 to Google Sheet:', err));
+
+      syncProgressToGoogleSheet({
+        timestamp: new Date().toISOString(),
+        studentCode: 'HS-BATTLE-DO',
+        fullName: student2Name || 'Học sinh Đội Đỏ',
+        username: (student2Name || 'doido').toLowerCase().replace(/[^a-z0-9]/g, '') || 'doido',
+        classCode: 'BIO9',
+        teacherCode: 'GV-ONLINE',
+        topicId: 'live_battle_1v1',
+        topicTitle: `Đối kháng: ${student1Name} vs ${student2Name}`,
+        activityType: 'challenge_battle',
+        score: teamBScore,
+        maxScore: battleTotal * 10,
+        correctCount: Math.round(teamBScore / 10),
+        totalQuestions: battleTotal,
+        xpEarned: teamBScore * 2,
+      }).catch(err => console.warn('Could not auto-sync battle student 2 to Google Sheet:', err));
     }
   };
 
@@ -611,7 +668,7 @@ export const ChallengesPage: React.FC = () => {
 
             {/* Question prompt */}
             <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed">
-              {currentSoloQuestion.question}
+              {formatBioFormula(currentSoloQuestion.question)}
             </h3>
 
             {/* MCQ Options (Questions 1 - 10) */}
@@ -647,7 +704,7 @@ export const ChallengesPage: React.FC = () => {
                       }`}>
                         {opt.id}
                       </span>
-                      <span className="leading-relaxed flex-1">{opt.text}</span>
+                      <span className="leading-relaxed flex-1">{formatBioFormula(opt.text)}</span>
                     </button>
                   );
                 })}
@@ -719,7 +776,7 @@ export const ChallengesPage: React.FC = () => {
                   )}
                 </div>
                 <p className="text-slate-700 leading-relaxed pl-4 border-l-2 border-sky-400">
-                  {currentSoloQuestion.explanation}
+                  {formatBioFormula(currentSoloQuestion.explanation)}
                 </p>
               </div>
             )}
@@ -1036,7 +1093,7 @@ export const ChallengesPage: React.FC = () => {
                 </div>
 
                 <h3 className="text-base sm:text-xl font-bold text-white leading-relaxed text-center py-2">
-                  {currentBattleQ.question}
+                  {formatBioFormula(currentBattleQ.question)}
                 </h3>
 
                 {/* 4 Choices */}
@@ -1056,7 +1113,7 @@ export const ChallengesPage: React.FC = () => {
                         <span className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center font-mono font-bold shrink-0">
                           {opt.id}
                         </span>
-                        <span className="leading-relaxed flex-1 mt-0.5">{opt.text}</span>
+                        <span className="leading-relaxed flex-1 mt-0.5">{formatBioFormula(opt.text)}</span>
                       </div>
                     );
                   })}

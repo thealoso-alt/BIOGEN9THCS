@@ -47,7 +47,7 @@ export const TOPIC_QUESTION_BANKS: Record<string, TopicQuestionBank> = {
           'D. Glycerol, nhóm phosphate và base nitơ'
         ],
         correctAnswer: 1,
-        explanation: 'Mỗi nucleotide cấu tạo gồm 1 phân tử đường deoxyribose (C5H10O4), 1 nhóm phosphate và 1 trong 4 loại base nitơ (A, T, G, C).',
+        explanation: 'Mỗi nucleotide cấu tạo gồm 1 phân tử đường deoxyribose (C₅H₁₀O₄), 1 nhóm phosphate (H₃PO₄) và 1 trong 4 loại base nitơ (A, T, G, C).',
       },
       {
         id: 'dna_mc_3',
@@ -212,7 +212,7 @@ export const TOPIC_QUESTION_BANKS: Record<string, TopicQuestionBank> = {
         question: 'Có bao nhiêu bộ ba mã hóa (codon) trong bảng mã di truyền?',
         options: ['A. 64 bộ ba', 'B. 61 bộ ba', 'C. 20 bộ ba', 'D. 16 bộ ba'],
         correctAnswer: 0,
-        explanation: 'Từ 4 loại nucleotide tạo thành 4^3 = 64 bộ ba mã di truyền (trong đó có 61 bộ ba mã hóa amino acid và 3 bộ ba kết thúc).',
+        explanation: 'Từ 4 loại nucleotide tạo thành 4³ = 64 bộ ba mã di truyền (trong đó có 61 bộ ba mã hóa amino acid và 3 bộ ba kết thúc).',
       },
       {
         id: 'gene_mc_5',
@@ -295,9 +295,9 @@ export const TOPIC_QUESTION_BANKS: Record<string, TopicQuestionBank> = {
         id: 'rna_mc_2',
         type: 'multiple_choice',
         question: 'Đường cấu tạo nên đơn phân ribonucleotide của RNA là loại đường nào?',
-        options: ['A. Deoxyribose (C5H10O4)', 'B. Ribose (C5H10O5)', 'C. Glucose (C6H12O6)', 'D. Fructose'],
+        options: ['A. Deoxyribose (C₅H₁₀O₄)', 'B. Ribose (C₅H₁₀O₅)', 'C. Glucose (C₆H₁₂O₆)', 'D. Fructose'],
         correctAnswer: 1,
-        explanation: 'Đường trong RNA là đường Ribose (C5H10O5), có nhiều hơn 1 nguyên tử oxy so với đường Deoxyribose của DNA.',
+        explanation: 'Đường trong RNA là đường Ribose (C₅H₁₀O₅), có nhiều hơn 1 nguyên tử oxy so với đường Deoxyribose (C₅H₁₀O₄) của DNA.',
       },
       {
         id: 'rna_mc_3',
@@ -541,7 +541,7 @@ export const TOPIC_QUESTION_BANKS: Record<string, TopicQuestionBank> = {
         question: 'Từ 1 phân tử DNA mẹ ban đầu, sau 4 lần nhân đôi liên tiếp tạo ra bao nhiêu phân tử DNA con?',
         options: ['A. 8', 'B. 16', 'C. 32', 'D. 64'],
         correctAnswer: 1,
-        explanation: 'Số phân tử DNA con tạo thành sau k lần nhân đôi = 2^k = 2^4 = 16 phân tử.',
+        explanation: 'Số phân tử DNA con tạo thành sau k lần nhân đôi = 2ᵏ = 2⁴ = 16 phân tử.',
       },
       {
         id: 'rep_mc_7',
@@ -1125,7 +1125,7 @@ export const TOPIC_QUESTION_BANKS: Record<string, TopicQuestionBank> = {
         question: 'Một tế bào sinh dưỡng của người (2n = 46) tiến hành nguyên phân 3 lần liên tiếp. Số tế bào con được tạo thành là bao nhiêu?',
         options: ['A. 6 tế bào', 'B. 8 tế bào', 'C. 16 tế bào', 'D. 32 tế bào'],
         correctAnswer: 1,
-        explanation: 'Số tế bào con = 2^k = 2^3 = 8 tế bào.',
+        explanation: 'Số tế bào con = 2ᵏ = 2³ = 8 tế bào.',
       },
       {
         id: 'mit_mc_3',

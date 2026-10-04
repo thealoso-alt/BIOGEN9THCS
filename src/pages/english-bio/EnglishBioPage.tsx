@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ENGLISH_BIO_TERMS } from '../../data/englishBioData';
 import { useAuth } from '../../hooks/useAuth';
+import { syncProgressToGoogleSheet } from '../../services/googleSheetService';
 import { Sparkles, Volume2, Search, CheckCircle2, RotateCcw, Award, Play } from 'lucide-react';
 
 export const EnglishBioPage: React.FC = () => {
@@ -100,6 +101,26 @@ export const EnglishBioPage: React.FC = () => {
   const handleNextGameQuestion = () => {
     if (currentQuestionIdx >= 4) {
       setIsGameFinished(true);
+      if (user) {
+        const studentCode = user.studentCode || (user.role === 'student' ? `HS-${(user.uid || '').replace(/[^0-9]/g, '').slice(-6).padStart(6, '0')}` : 'HS-GUEST');
+        const correctCount = Math.round(gameScore / 10);
+        syncProgressToGoogleSheet({
+          timestamp: new Date().toISOString(),
+          studentCode,
+          fullName: user.fullName || user.username || 'Học sinh',
+          username: user.username || 'hocsinh',
+          classCode: 'BIO9',
+          teacherCode: user.teacherCode || 'GV-ONLINE',
+          topicId: 'english_bio_quiz',
+          topicTitle: 'Thuật ngữ Sinh học tiếng Anh (English Biology)',
+          activityType: 'english_bio',
+          score: gameScore,
+          maxScore: 50,
+          correctCount,
+          totalQuestions: 5,
+          xpEarned: gameScore * 2,
+        }).catch(err => console.warn('Could not auto-sync English Bio to Google Sheet:', err));
+      }
     } else {
       setCurrentQuestionIdx(prev => prev + 1);
       setSelectedOption(null);

@@ -8,6 +8,7 @@ import {
   CloudTopicKnowledge,
 } from '../../firebase/knowledgeService';
 import { syncKnowledgeToGoogleSheet } from '../../services/googleSheetService';
+import { formatBioFormula } from '../../utils/formulaFormatter';
 import {
   Pencil,
   Check,
@@ -270,12 +271,12 @@ export const TopicKnowledgeViewer: React.FC<TopicKnowledgeViewerProps> = ({
               <div key={idx} className="space-y-3 pb-6 border-b border-slate-100 last:border-b-0">
                 <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                   <span className="w-1.5 h-4 bg-sky-500 rounded-full" />
-                  <span>{sec.heading}</span>
+                  <span>{formatBioFormula(sec.heading)}</span>
                 </h3>
 
                 {sec.paragraphs?.map((p, pIdx) => (
                   <p key={pIdx} className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-                    {p}
+                    {formatBioFormula(p)}
                   </p>
                 ))}
 
@@ -284,7 +285,7 @@ export const TopicKnowledgeViewer: React.FC<TopicKnowledgeViewerProps> = ({
                     {sec.bulletPoints.map((bp, bpIdx) => (
                       <li key={bpIdx} className="flex items-start gap-2">
                         <span className="text-sky-500 font-bold mt-0.5 shrink-0">•</span>
-                        <span>{bp}</span>
+                        <span>{formatBioFormula(bp)}</span>
                       </li>
                     ))}
                   </ul>
@@ -293,12 +294,12 @@ export const TopicKnowledgeViewer: React.FC<TopicKnowledgeViewerProps> = ({
                 {sec.formulaBox && (
                   <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-2 shadow-xs">
                     <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block">
-                      {sec.formulaBox.title}:
+                      {formatBioFormula(sec.formulaBox.title)}:
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-mono font-bold text-amber-900">
                       {sec.formulaBox.formulas.map((f, fIdx) => (
                         <div key={fIdx} className="p-2.5 rounded-xl bg-white border border-amber-200 shadow-xs">
-                          {f}
+                          {formatBioFormula(f)}
                         </div>
                       ))}
                     </div>
@@ -308,7 +309,7 @@ export const TopicKnowledgeViewer: React.FC<TopicKnowledgeViewerProps> = ({
                 {sec.highlightBox && (
                   <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200/80 text-xs sm:text-sm text-sky-900 flex items-start gap-2.5">
                     <Info className="h-4 w-4 shrink-0 text-sky-600 mt-0.5" />
-                    <span className="leading-relaxed font-medium">{sec.highlightBox}</span>
+                    <span className="leading-relaxed font-medium">{formatBioFormula(sec.highlightBox)}</span>
                   </div>
                 )}
               </div>

@@ -28,6 +28,8 @@ import {
   GOOGLE_SHEET_WEBAPP_URL,
   SyncLogItem,
 } from '../../services/googleSheetService';
+import { exportStudentsToExcel } from '../../utils/accountGenerator';
+import { formatBioFormula } from '../../utils/formulaFormatter';
 import {
   ShieldCheck,
   School,
@@ -57,6 +59,8 @@ import {
   Clock,
   ArrowRight,
   TrendingUp,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -427,6 +431,34 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Export students to Excel (.xlsx)
+  const handleExportStudentsExcel = () => {
+    const list = filteredStudents;
+    if (list.length === 0) {
+      alert('Không có học sinh nào trong danh sách hiện tại để xuất file Excel.');
+      return;
+    }
+    const formatted = list.map((s, idx) => {
+      const cls = classes.find(c => c.id === s.classId);
+      return {
+        stt: idx + 1,
+        studentCode: s.studentCode || '',
+        fullName: s.fullName,
+        username: s.username,
+        password: s.password,
+        className: s.className || cls?.name || 'Chưa xếp lớp',
+        classCode: cls?.code || '',
+        teacherName: cls?.teacherName || '',
+        email: s.email,
+        xp: s.xp,
+        level: s.level,
+      };
+    });
+    const clsName = studentClassFilter !== 'all' ? `_lop_${(classes.find(c => c.id === studentClassFilter)?.name || '').replace(/\s+/g, '_')}` : '_toan_truong';
+    exportStudentsToExcel(formatted, `Danh_sach_hoc_sinh${clsName}.xlsx`);
+    triggerToast(`Đã xuất và tải về file Excel (${list.length} học sinh)!`);
+  };
+
   // SECURITY GUARD:
   // "gv và hs không thể xem thông tin này"
   if (!user || user.role !== 'admin') {
@@ -486,14 +518,10 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <button
-              onClick={handleMasterSyncToGoogleSheets}
-              disabled={isSyncingMaster}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${isSyncingMaster ? 'animate-spin' : ''}`} />
-              <span>{isSyncingMaster ? 'Đang Master Sync...' : 'Master Sync 6 Sheet'}</span>
-            </button>
+            <div className="px-4 py-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-bold text-xs shadow-lg flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Google Sheets: Tự Động Đồng Bộ</span>
+            </div>
 
             <button
               onClick={() => setIsGasCodeModalOpen(true)}
@@ -957,6 +985,18 @@ export const AdminDashboard: React.FC = () => {
                 Mỗi học sinh có 1 Mã HS riêng biệt (<code className="font-mono text-emerald-700">HS-XXXXXX</code>) không trùng lặp và ghi nhận vào Google Sheet.
               </p>
             </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportStudentsExcel}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                title="Tải toàn bộ danh sách học sinh ra file Excel .xlsx"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span>Tải Danh Sách HS (Excel .xlsx)</span>
+              </button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -1136,24 +1176,10 @@ export const AdminDashboard: React.FC = () => {
                   <span>Khôi phục về SGK</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    syncKnowledgeToGoogleSheet({
-                      teacherCode: 'ADMIN',
-                      teacherName: 'Quản trị viên',
-                      topicId: currentKnowledge.topicId,
-                      topicTitle: GENETICS_TOPICS.find(t => t.id === currentKnowledge.topicId)?.titleVi || '',
-                      sectionCount: currentKnowledge.sections?.length || 0,
-                      summary: (currentKnowledge.sections || []).map(s => s.heading).join('; '),
-                      updatedAt: new Date().toISOString(),
-                    });
-                    triggerToast('Đã đồng bộ kiến thức chuẩn lên Google Sheet (KienThucChuan_GV)!');
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Cloud className="h-3.5 w-3.5" />
-                  <span>Đồng bộ lên Sheet</span>
-                </button>
+                <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs flex items-center gap-1.5 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Tự Động Đồng Bộ Google Sheets</span>
+                </div>
               </div>
             </div>
 
@@ -1264,7 +1290,7 @@ export const AdminDashboard: React.FC = () => {
                     <tr key={q.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-amber-700 uppercase">{q.topicId}</td>
                       <td className="py-3 px-4 max-w-sm">
-                        <p className="font-semibold text-slate-900 line-clamp-2">{q.question}</p>
+                        <p className="font-semibold text-slate-900 line-clamp-2">{formatBioFormula(q.question)}</p>
                       </td>
                       <td className="py-3 px-4 font-mono text-[11px]">
                         {q.type === 'mcq' ? 'Trắc nghiệm' : q.type === 'true_false' ? 'Đúng/Sai' : q.type}
@@ -1340,14 +1366,10 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                onClick={handleMasterSyncToGoogleSheets}
-                disabled={isSyncingMaster}
-                className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-teal-900/20 transition-all cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${isSyncingMaster ? 'animate-spin' : ''}`} />
-                <span>{isSyncingMaster ? 'Đang đồng bộ...' : 'Đồng Bộ Tất Cả Ngay'}</span>
-              </button>
+              <div className="px-4 py-2 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 font-bold text-xs flex items-center gap-2 shadow-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />
+                <span>Tự Động Đồng Bộ Thời Gian Thực (Active)</span>
+              </div>
             </div>
           </div>
 
