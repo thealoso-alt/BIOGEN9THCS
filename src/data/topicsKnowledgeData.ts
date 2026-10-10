@@ -13,6 +13,228 @@ export interface TopicKnowledgeContent {
 }
 
 export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
+  // === 7 CHỦ ĐỀ CHÍNH THEO HÌNH ẢNH YÊU CẦU ===
+  nucleic_acid_gene: {
+    topicId: 'nucleic_acid_gene',
+    sections: [
+      {
+        heading: '1. Đại phân tử Nucleic Acid (DNA & RNA)',
+        paragraphs: [
+          'Deoxyribonucleic acid (DNA) và Ribonucleic acid (RNA) là hai loại đại phân tử sinh học mang vật chất di truyền, được cấu tạo theo nguyên tắc đa phân.',
+          'Đơn phân của DNA là 4 loại nucleotide: Adenine (A), Thymine (T), Guanine (G), Cytosine (C). Mỗi nucleotide gồm 3 phần: đường deoxyribose (C₅H₁₀O₄), nhóm phosphate (H₃PO₄) và một nitrogenous base.',
+          'Đơn phân của RNA là 4 loại ribonucleotide: A, U (Uracil thay cho T), G, C với đường ribose (C₅H₁₀O₅). Phân tử RNA thường có cấu trúc mạch đơn gồm 3 dạng chức năng: mARN (truyền đạt thông tin), tARN (vận chuyển amino acid) và rARN (thành phần cấu tạo ribosome).',
+        ],
+        bulletPoints: [
+          'DNA có cấu trúc xoắn kép gồm 2 mạch polynucleotide song song ngược chiều (3\'→5\' và 5\'→3\').',
+          'Nguyên tắc bổ sung giữa hai mạch DNA: A liên kết với T bằng 2 liên kết hydrogen (A=T); G liên kết với C bằng 3 liên kết hydrogen (G≡C).',
+          'Chu kỳ xoắn của DNA cao 34 Å gồm 10 cặp nucleotide, đường kính vòng xoắn là 20 Å.',
+        ],
+        formulaBox: {
+          title: 'Hệ thống công thức toán sinh Nucleic Acid trọng tâm',
+          formulas: [
+            'Tổng số nucleotide của DNA: N = 2A + 2G = 2T + 2C',
+            'Chiều dài phân tử DNA: L = (N / 2) × 3,4 Å = (N / 2) × 0,34 nm',
+            'Khối lượng phân tử DNA: M = N × 300 amu',
+            'Số chu kỳ xoắn: C = N / 20 = L / 34 Å',
+            'Số liên kết hydrogen: H = 2A + 3G = 2T + 3C',
+            'Số liên kết hóa trị phosphodiester giữa các nucleotide: HT = 2N - 2',
+          ],
+        },
+      },
+      {
+        heading: '2. Cấu trúc, Bản chất hóa học của Gene & Mã di truyền',
+        paragraphs: [
+          'Gene là một đoạn của phân tử DNA mang thông tin mã hóa cho một sản phẩm xác định (chuỗi polypeptide hoặc phân tử RNA). Bản chất hóa học của gene chính là DNA.',
+          'Một gene cấu trúc gồm 3 vùng kế tiếp: Vùng điều hòa (đầu 3\' mạch gốc, khởi động phiên mã), Vùng mã hóa (mang thông tin mã hóa các amino acid) và Vùng kết thúc (đầu 5\' mạch gốc, phát tín hiệu dừng phiên mã).',
+        ],
+        bulletPoints: [
+          'Mã di truyền là mã bộ ba (Codon): Cứ 3 nucleotide kế tiếp quy định 1 amino acid.',
+          'Có 64 bộ ba mã hóa: 1 bộ ba mở đầu 5\'AUG3\' (mã hóa Methionine), 3 bộ ba kết thúc không mã hóa (5\'UAA3\', 5\'UAG3\', 5\'UGA3\').',
+          'Đặc điểm mã di truyền: Tính phổ biến, tính đặc hiệu và tính thoái hóa (nhiều bộ ba cùng mã hóa 1 amino acid).',
+        ],
+        highlightBox:
+          'Hệ quả nguyên tắc bổ sung: Trong phân tử DNA mạch kép luôn có A = T, G = C; do đó A + G = T + C = 50% tổng số nucleotide. Tỉ lệ (A+T)/(G+C) đặc trưng cho từng loài sinh vật.',
+      },
+    ],
+  },
+
+  dna_replication_transcription: {
+    topicId: 'dna_replication_transcription',
+    sections: [
+      {
+        heading: '1. Cơ chế Tái bản DNA (Tự nhân đôi DNA)',
+        paragraphs: [
+          'Tự nhân đôi DNA diễn ra trong nhân tế bào tại pha S của kỳ trung gian trong chu kỳ phân bào, chuẩn bị cho sự phân chia nhiễm sắc thể.',
+          'Quá trình diễn ra theo 2 nguyên tắc cơ bản: NGUYÊN TẮC BỔ SUNG (A liên kết với T, G liên kết với C) và NGUYÊN TẮC BÁN BẢO TỒN (mỗi phân tử DNA con tạo thành có 1 mạch cũ từ mẹ và 1 mạch mới tổng hợp).',
+        ],
+        bulletPoints: [
+          'Bước 1: Enzyme tháo xoắn tách 2 mạch đơn của DNA tạo chạc chữ Y.',
+          'Bước 2: Enzyme DNA Polymerase gắn nucleotide tự do từ môi trường theo nguyên tắc bổ sung với mạch khuôn (tổng hợp mạch mới theo chiều 5\'→3\').',
+          'Bước 3: Hai phân tử DNA con giống hệt nhau và giống phân tử DNA mẹ ban đầu.',
+        ],
+        formulaBox: {
+          title: 'Công thức toán sinh Nhân đôi DNA',
+          formulas: [
+            'Từ 1 phân tử DNA mẹ sau k đợt nhân đôi tạo 2^k phân tử DNA con.',
+            'Số phân tử DNA con có 2 mạch hoàn toàn mới: 2^k - 2',
+            'Số nucleotide môi trường cung cấp: N_mt = N × (2^k - 1)',
+            'Số nucleotide từng loại môi trường cung cấp: A_mt = T_mt = A × (2^k - 1); G_mt = C_mt = G × (2^k - 1)',
+          ],
+        },
+      },
+      {
+        heading: '2. Cơ chế Phiên mã tạo RNA',
+        paragraphs: [
+          'Phiên mã là quá trình tổng hợp phân tử RNA dựa trên mạch khuôn của gene dưới sự xúc tác của enzyme RNA Polymerase trong nhân tế bào.',
+          'Enzyme trượt dọc mạch mã gốc của gene (chiều 3\'→5\') và liên kết các ribonucleotide tự do theo nguyên tắc bổ sung: A khuôn liên kết với U tự do; T khuôn liên kết với A tự do; G khuôn liên kết với C tự do; C khuôn liên kết với G tự do.',
+        ],
+        bulletPoints: [
+          'Chiều tổng hợp phân tử mARN luôn là 5\' → 3\'.',
+          'Kết thúc phiên mã, phân tử RNA tách khỏi gene và đi ra tế bào chất tham gia dịch mã.',
+          'Số ribonucleotide của mARN: rN = N/2. Chiều dài mARN: L_mARN = rN × 3,4 Å.',
+        ],
+      },
+    ],
+  },
+
+  translation_gene_trait: {
+    topicId: 'translation_gene_trait',
+    sections: [
+      {
+        heading: '1. Cơ chế Dịch mã (Tổng hợp Protein tại Ribosome)',
+        paragraphs: [
+          'Dịch mã là quá trình chuyển đổi thông tin di truyền từ trình tự các nucleotide trên phân tử mARN thành trình tự các amino acid trong chuỗi polypeptide.',
+          'Quá trình diễn ra tại ribosome trong tế bào chất gồm 2 giai đoạn: Hoạt hóa amino acid và Tổng hợp chuỗi polypeptide.',
+        ],
+        bulletPoints: [
+          'Mở đầu: Tiểu đơn vị bé của ribosome bám vào vị trí nhận biết trên mARN, tARN mang amino acid mở đầu (Met) khớp anticodon với codon 5\'AUG3\'.',
+          'Kéo dài chuỗi: Các tARN kế tiếp mang amino acid vào ribosome, hình thành liên kết peptide giữa các amino acid.',
+          'Kết thúc: Khi ribosome tiếp xúc với 1 trong 3 bộ ba kết thúc (UAA, UAG, UGA), quá trình dừng lại, chuỗi polypeptide được giải phóng.',
+        ],
+      },
+      {
+        heading: '2. Cấu trúc Protein & Mối quan hệ giữa Gene và Tính trạng',
+        paragraphs: [
+          'Protein là đại phân tử cấu tạo từ hơn 20 loại amino acid, có 4 bậc cấu trúc không gian (bậc 1, 2, 3, 4). Cấu trúc không gian bậc 3 và 4 quyết định hoạt tính sinh học đặc thù của protein (enzyme, kháng thể, hormone, cấu trúc tế bào...).',
+          'SƠ ĐỒ DÒNG THÔNG TIN DI TRUYỀN CỐT LÕI:',
+        ],
+        highlightBox:
+          'Trình tự các nucleotide trong gene (DNA) quy định trình tự các ribonucleotide trong mARN qua phiên mã. Trình tự các ribonucleotide trong mARN quy định trình tự các amino acid trong chuỗi polypeptide (protein) qua dịch mã. Protein trực tiếp biểu hiện thành TÍNH TRẠNG của cơ thể sinh vật.',
+      },
+    ],
+  },
+
+  gene_mutation: {
+    topicId: 'gene_mutation',
+    sections: [
+      {
+        heading: '1. Khái niệm & Các dạng Đột biến Gene',
+        paragraphs: [
+          'Đột biến gene là những biến đổi trong cấu trúc của gene, liên quan đến một hoặc một số cặp nucleotide. Đột biến liên quan đến 1 cặp nucleotide gọi là đột biến điểm.',
+        ],
+        bulletPoints: [
+          'Mất một cặp nucleotide: Làm dịch khung đọc mã di truyền từ vị trí đột biến về sau, thay đổi toàn bộ trình tự amino acid.',
+          'Thêm một cặp nucleotide: Cũng làm dịch khung đọc mã, làm biến đổi chuỗi polypeptide.',
+          'Thay thế một cặp nucleotide: Chỉ làm thay đổi nhiều nhất 1 amino acid trong chuỗi polypeptide (hoặc không thay đổi do tính thoái hóa của mã di truyền).',
+        ],
+      },
+      {
+        heading: '2. Nguyên nhân, Hậu quả & Ý nghĩa sinh học',
+        paragraphs: [
+          'Nguyên nhân: Do tác nhân vật lý (tia UV, phóng xạ), tác nhân hóa học (5-BU, EMS, hóa chất độc hại) hoặc rối loạn sinh lý nội bào trong quá trình tự nhân đôi DNA.',
+          'Hậu quả: Đa số đột biến gene gây hại cho sinh vật vì phá vỡ sự hài hòa qua chọn lọc tự nhiên, một số trung tính hoặc có lợi trong môi trường mới.',
+          'Ý nghĩa: Cung cấp nguồn nguyên liệu sơ cấp dồi dào cho quá trình tiến hóa và chọn giống.',
+        ],
+      },
+    ],
+  },
+
+  chromosome_and_set: {
+    topicId: 'chromosome_and_set',
+    sections: [
+      {
+        heading: '1. Cấu trúc hình thái & Siêu hiển vi của Nhiễm sắc thể',
+        paragraphs: [
+          'Nhiễm sắc thể (NST) là cấu trúc mang vật chất di truyền ở cấp độ tế bào, nằm trong nhân tế bào sinh vật nhân thực và bắt màu mạnh với thuốc nhuộm kiềm tính.',
+          'Cấu trúc siêu hiển vi: Phân tử DNA mạch kép cuộn quanh khối protein histone (gồm 8 phân tử histone) tạo nên các hạt NUCLEOSOME. Mỗi nucleosome được quấn bởi khoảng 146 cặp nucleotide DNA với 1 3/4 vòng.',
+        ],
+        bulletPoints: [
+          'Sợi cơ bản: Đường kính 11 nm.',
+          'Sợi nhiễm sắc: Đường kính 30 nm.',
+          'Sợi siêu xoắn: Đường kính 300 nm.',
+          'Cromatit (ở kỳ giữa): Đường kính 700 nm.',
+          'Tâm động (Centromere): Vị trí thắt liên kết với thoi vô sắc khi phân bào.',
+        ],
+      },
+      {
+        heading: '2. Đặc trưng của Bộ nhiễm sắc thể loài',
+        paragraphs: [
+          'Mỗi loài sinh vật có một bộ nhiễm sắc thể đặc trưng về số lượng, hình dạng và cấu trúc.',
+          'Tế bào sinh dưỡng (xôma) chứa bộ NST lưỡng bội (2n), gồm các cặp NST tương đồng giống nhau về kích thước và hình dạng.',
+          'Giao tử (trứng, tinh trùng) chứa bộ NST đơn bội (n), chỉ có 1 chiếc của mỗi cặp tương đồng.',
+        ],
+        highlightBox:
+          'Ví dụ bộ NST lưỡng bội ở một số loài: Người: 2n = 46 (n = 23); Ruồi giấm: 2n = 8 (n = 4); Đậu hà lan: 2n = 14 (n = 7); Tinh tinh: 2n = 48 (n = 24). Số lượng NST không phản ánh mức độ tiến hóa của loài.',
+      },
+    ],
+  },
+
+  mitosis_meiosis: {
+    topicId: 'mitosis_meiosis',
+    sections: [
+      {
+        heading: '1. Quá trình Nguyên phân (Mitosis)',
+        paragraphs: [
+          'Nguyên phân là hình thức phân bào có tơ ở tế bào sinh dưỡng và tế bào sinh dục sơ khai, gồm 4 kỳ: Kỳ đầu, Kỳ giữa, Kỳ sau và Kỳ cuối.',
+        ],
+        bulletPoints: [
+          'Kỳ đầu: NST kép bắt đầu đóng xoắn và co ngắn, màng nhân biến mất, thoi vô sắc xuất hiện.',
+          'Kỳ giữa: Các NST kép đóng xoắn cực đại và xếp thành 1 hàng trên mặt phẳng xích đạo của thoi phân bào.',
+          'Kỳ sau: Từng NST kép tách ở tâm động thành 2 NST đơn và phân ly về 2 cực tế bào.',
+          'Kỳ cuối: NST đơn dãn xoắn, màng nhân tái xuất hiện, tế bào chất phân chia tạo 2 tế bào con có bộ NST lưỡng bội 2n giống hệt tế bào mẹ.',
+        ],
+      },
+      {
+        heading: '2. Quá trình Giảm phân (Meiosis)',
+        paragraphs: [
+          'Giảm phân xảy ra ở tế bào sinh dục thời kỳ chín, gồm 2 lần phân bào liên tiếp nhưng DNA chỉ nhân đôi 1 lần ở kỳ trung gian trước giảm phân I.',
+          'Giảm phân I: Có hiện tượng tiếp hợp và trao đổi chéo giữa các crômatit khác nguồn ở kỳ đầu I tạo biến dị tổ hợp. Kỳ giữa I xếp 2 hàng; Kỳ sau I mỗi NST kép trong cặp phân ly về một cực.',
+          'Giảm phân II: Phân chia tương tự nguyên phân, tách tâm động của NST kép tạo ra 4 tế bào con đơn bội (n).',
+        ],
+        highlightBox:
+          'Ý nghĩa sinh học: Sự kết hợp giữa nguyên phân, giảm phân và thụ tinh đảm bảo duy trì ổn định bộ NST đặc trưng của loài qua các thế hệ và tạo ra vô số biến dị tổ hợp làm phong phú sinh giới.',
+      },
+    ],
+  },
+
+  sex_determination: {
+    topicId: 'sex_determination',
+    sections: [
+      {
+        heading: '1. Nhiễm sắc thể Giới tính',
+        paragraphs: [
+          'Trong tế bào lưỡng bội ngoài các cặp NST thường (A) còn có 1 cặp NST giới tính quy định giới tính của cơ thể sinh vật.',
+          'Cặp NST giới tính có thể đồng hình (XX) hoặc dị hình (XY hoặc XO).',
+        ],
+        bulletPoints: [
+          'Ở người, động vật có vú, ruồi giấm: Con cái là XX (đồng giao tử), con đực là XY (dị giao tử).',
+          'Ở chim, bò sát, ếch nhái, tằm: Con cái là XY (hoặc ZW), con đực là XX (hoặc ZZ).',
+          'Ở châu chấu: Con đực chỉ có 1 NST X (XO), con cái có XX.',
+        ],
+      },
+      {
+        heading: '2. Cơ chế Xác định Giới tính & Tỉ lệ Đực : Cái',
+        paragraphs: [
+          'Cơ chế: Sự phân ly của cặp NST giới tính trong quá trình phát sinh giao tử và sự tổ hợp tự do ngẫu nhiên của chúng trong thụ tinh.',
+          'Ở người: Mẹ (XX) chỉ cho 1 loại trứng mang X; Bố (XY) cho 2 loại tinh trùng tỉ lệ ngang nhau: 50% mang X và 50% mang Y. Sự thụ tinh giữa trứng X với tinh trùng X tạo con gái (XX), trứng X với tinh trùng Y tạo con trai (XY).',
+        ],
+        highlightBox:
+          'Tỉ lệ đực : cái ở đa số sinh vật xấp xỉ 1 : 1 qua thống kê số lượng lớn do số lượng hai loại giao tử đực X và Y sinh ra ngang nhau và xác suất thụ tinh tương đương nhau.',
+      },
+    ],
+  },
+
+  // === DỮ LIỆU CŨ LƯU LẠI ĐỂ TƯƠNG THÍCH ===
   dna: {
     topicId: 'dna',
     sections: [
@@ -241,8 +463,8 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
       },
     ],
   },
-  gene_mutation: {
-    topicId: 'gene_mutation',
+  legacy_gene_mutation: {
+    topicId: 'legacy_gene_mutation',
     sections: [
       {
         heading: '1. Định nghĩa & Các dạng Đột biến Gene',
@@ -375,8 +597,8 @@ export const TOPICS_KNOWLEDGE_BASE: Record<string, TopicKnowledgeContent> = {
       },
     ],
   },
-  sex_determination: {
-    topicId: 'sex_determination',
+  legacy_sex_determination: {
+    topicId: 'legacy_sex_determination',
     sections: [
       {
         heading: '1. Cặp Nhiễm sắc thể Giới tính',

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
-import { GENETICS_TOPICS } from '../../data/topicsData';
+import { GENETICS_TOPICS, useGeneticsTopics, GeneticsTopic } from '../../data/topicsData';
 import { TOPICS_KNOWLEDGE_BASE } from '../../data/topicsKnowledgeData';
 import { QuestionItem, QuestionDifficulty, QuestionStatus, QuestionType } from '../../types/question';
 import { ClassRoom, UserAccountCredential, StudentAccount } from '../../types/auth';
@@ -13,6 +13,7 @@ import {
 import {
   subscribeToTopicKnowledge,
   resetTopicKnowledgeToDefault,
+  saveTopicKnowledgeToCloud,
   CloudTopicKnowledge,
   getLocalKnowledge,
 } from '../../firebase/knowledgeService';
@@ -26,6 +27,8 @@ import {
   subscribeToSyncLogs,
   RECOMMENDED_GAS_CODE,
   GOOGLE_SHEET_WEBAPP_URL,
+  getGoogleSheetWebhookUrl,
+  setGoogleSheetWebhookUrl,
   SyncLogItem,
 } from '../../services/googleSheetService';
 import { exportStudentsToExcel } from '../../utils/accountGenerator';
@@ -61,7 +64,18 @@ import {
   TrendingUp,
   Download,
   FileSpreadsheet,
+  Pencil,
+  Edit3,
+  Settings,
+  RotateCcw,
 } from 'lucide-react';
+import { EditTeacherModal } from './modals/EditTeacherModal';
+import { EditClassModal } from './modals/EditClassModal';
+import { EditStudentModal } from './modals/EditStudentModal';
+import { EditKnowledgeModal } from './modals/EditKnowledgeModal';
+import { EditQuestionModal } from './modals/EditQuestionModal';
+import { EditTopicModal } from './modals/EditTopicModal';
+import { AddTopicModal } from './modals/AddTopicModal';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -77,13 +91,17 @@ export const AdminDashboard: React.FC = () => {
     deleteStudent,
     addClass,
     accounts,
+    updateTeacher,
+    updateClass,
+    updateStudent,
   } = useAuth();
 
+  const { topics, updateTopic, deleteTopic, addTopic, resetToDefault } = useGeneticsTopics();
   const { navigate } = useNavigation();
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'teachers' | 'classes' | 'students' | 'knowledge' | 'questions' | 'google_sheets'
+    'overview' | 'teachers' | 'classes' | 'students' | 'knowledge' | 'questions' | 'google_sheets' | 'topics'
   >('overview');
 
   // Master Questions State
@@ -150,9 +168,9 @@ export const AdminDashboard: React.FC = () => {
   const [newStudentPassInput, setNewStudentPassInput] = useState('');
 
   // Knowledge Management State
-  const [selectedTopicKnowledgeId, setSelectedTopicKnowledgeId] = useState('dna');
+  const [selectedTopicKnowledgeId, setSelectedTopicKnowledgeId] = useState('nucleic_acid_gene');
   const [currentKnowledge, setCurrentKnowledge] = useState<CloudTopicKnowledge>(() =>
-    getLocalKnowledge('dna')
+    getLocalKnowledge('nucleic_acid_gene')
   );
 
   useEffect(() => {
@@ -168,9 +186,127 @@ export const AdminDashboard: React.FC = () => {
   const [questionStatusFilter, setQuestionStatusFilter] = useState('all');
   const [previewQuestion, setPreviewQuestion] = useState<QuestionItem | null>(null);
 
+  // Full Edit Modals State
+  const [editingTeacherData, setEditingTeacherData] = useState<UserAccountCredential | null>(null);
+  const [editingClassData, setEditingClassData] = useState<ClassRoom | null>(null);
+  const [editingStudentData, setEditingStudentData] = useState<StudentAccount | null>(null);
+  const [isEditKnowledgeModalOpen, setIsEditKnowledgeModalOpen] = useState(false);
+  const [editingQuestionData, setEditingQuestionData] = useState<QuestionItem | null>(null);
+
+  // Topic Management State
+  const [topicSearch, setTopicSearch] = useState('');
+  const [topicModuleFilter, setTopicModuleFilter] = useState<'all' | 'molecular' | 'cellular'>('all');
+  const [editingTopicData, setEditingTopicData] = useState<GeneticsTopic | null>(null);
+  const [isAddTopicModalOpen, setIsAddTopicModalOpen] = useState(false);
+
+  // Webhook URL Edit State
+  const [currentWebhookUrl, setCurrentWebhookUrl] = useState(() => getGoogleSheetWebhookUrl());
+  const [isEditingWebhookUrl, setIsEditingWebhookUrl] = useState(false);
+  const [webhookUrlInput, setWebhookUrlInput] = useState(() => getGoogleSheetWebhookUrl());
+
+  const handleSaveTeacherEdit = (teacherUid: string, data: Partial<UserAccountCredential>) => {
+    if (updateTeacher(teacherUid, data)) {
+      triggerToast(`Đã cập nhật thông tin giáo viên thành công!`);
+    } else {
+      triggerToast('Không thể cập nhật thông tin giáo viên.');
+    }
+  };
+
+  const handleSaveClassEdit = (classId: string, data: Partial<ClassRoom>) => {
+    if (updateClass(classId, data)) {
+      triggerToast(`Đã cập nhật thông tin lớp học thành công!`);
+    } else {
+      triggerToast('Không thể cập nhật thông tin lớp học.');
+    }
+  };
+
+  const handleSaveStudentEdit = (studentUid: string, data: Partial<StudentAccount & { password?: string; classId?: string }>) => {
+    if (updateStudent(studentUid, data)) {
+      triggerToast(`Đã cập nhật thông tin học sinh thành công!`);
+    } else {
+      triggerToast('Không thể cập nhật thông tin học sinh.');
+    }
+  };
+
+  const handleSaveKnowledgeEdit = async (updated: CloudTopicKnowledge) => {
+    try {
+      await saveTopicKnowledgeToCloud(updated, {
+        uid: 'admin_root',
+        fullName: 'Quản trị viên Hệ thống',
+      });
+      setCurrentKnowledge(updated);
+      await syncKnowledgeToGoogleSheet({
+        teacherCode: 'ADMIN',
+        teacherName: 'Quản trị viên',
+        topicId: updated.topicId,
+        topicTitle: topics.find(t => t.id === updated.topicId)?.titleVi || updated.topicId,
+        sectionCount: updated.sections.length,
+        summary: 'Quản trị viên cập nhật trực tuyến qua giao diện Admin',
+        updatedAt: new Date().toISOString(),
+      });
+      triggerToast(`Đã lưu và đồng bộ kiến thức chuyên đề ${updated.topicId.toUpperCase()}!`);
+    } catch (e) {
+      console.error(e);
+      triggerToast('Lỗi khi lưu kiến thức chuyên đề.');
+    }
+  };
+
+  const handleSaveQuestionEdit = async (q: QuestionItem) => {
+    try {
+      await saveQuestionToCloud(q);
+      await syncQuestionToGoogleSheet({
+        teacherCode: 'ADMIN',
+        teacherName: q.createdByName || 'Quản trị viên',
+        questionId: q.id,
+        topicId: q.topicId,
+        type: q.type || 'mcq',
+        question: q.question,
+        correctAnswer: Array.isArray(q.correctAnswer) ? q.correctAnswer.join(', ') : (q.correctAnswer || ''),
+        difficulty: q.difficulty,
+        status: q.status,
+        updatedAt: new Date().toISOString(),
+      });
+      triggerToast(`Đã cập nhật câu hỏi mã ${q.id} thành công!`);
+    } catch (e) {
+      console.error(e);
+      triggerToast('Lỗi khi lưu câu hỏi.');
+    }
+  };
+
+  const handleSaveWebhookUrl = () => {
+    if (!webhookUrlInput.trim().startsWith('http')) {
+      alert('Vui lòng nhập đường dẫn URL hợp lệ bắt đầu bằng https://');
+      return;
+    }
+    setGoogleSheetWebhookUrl(webhookUrlInput.trim());
+    setCurrentWebhookUrl(webhookUrlInput.trim());
+    setIsEditingWebhookUrl(false);
+    triggerToast('Đã lưu cấu hình Webhook URL Google Sheets mới!');
+  };
+
+  const handleResetWebhookUrl = () => {
+    setGoogleSheetWebhookUrl('');
+    setCurrentWebhookUrl(getGoogleSheetWebhookUrl());
+    setWebhookUrlInput(getGoogleSheetWebhookUrl());
+    setIsEditingWebhookUrl(false);
+    triggerToast('Đã khôi phục Webhook URL mặc định!');
+  };
+
   // Derived lists
   const teachersList = getAllTeachers();
   const studentsList = getAllStudents();
+
+  const filteredTopics = topics.filter((t) => {
+    if (topicModuleFilter !== 'all' && t.module !== topicModuleFilter) return false;
+    if (!topicSearch.trim()) return true;
+    const q = topicSearch.toLowerCase();
+    return (
+      (t.titleVi || '').toLowerCase().includes(q) ||
+      (t.titleEn || '').toLowerCase().includes(q) ||
+      (t.id || '').toLowerCase().includes(q) ||
+      (t.descriptionVi || '').toLowerCase().includes(q)
+    );
+  });
 
   // Search filtered teachers
   const filteredTeachers = teachersList.filter((t) => {
@@ -600,6 +736,7 @@ export const AdminDashboard: React.FC = () => {
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
         {[
           { id: 'overview', label: 'Tổng Quan Hệ Thống', icon: TrendingUp },
+          { id: 'topics', label: `Quản Lý Chủ Đề (${topics.length})`, icon: Sparkles },
           { id: 'teachers', label: `Quản Lý Giáo Viên (${teachersList.length})`, icon: School },
           { id: 'classes', label: `Quản Lý Lớp Học (${classes.length})`, icon: Layers },
           { id: 'students', label: `Học Sinh Toàn Trường (${studentsList.length})`, icon: GraduationCap },
@@ -839,11 +976,18 @@ export const AdminDashboard: React.FC = () => {
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              onClick={() => setEditingTeacherData(t)}
+                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
+                              title="Chỉnh sửa thông tin giáo viên"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
                               onClick={() => {
                                 setEditingTeacher(t);
                                 setNewTeacherPassInput('');
                               }}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                               title="Đặt lại mật khẩu giáo viên"
                             >
                               <Key className="h-3.5 w-3.5" />
@@ -948,18 +1092,27 @@ export const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-slate-500">{c.schoolYear}</td>
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Xác nhận xóa lớp "${c.name}" (${c.code})?`)) {
-                              deleteClass(c.id);
-                              triggerToast(`Đã xóa lớp ${c.name}!`);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors"
-                          title="Xóa lớp học"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setEditingClassData(c)}
+                            className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 transition-colors cursor-pointer"
+                            title="Chỉnh sửa thông tin lớp học"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Xác nhận xóa lớp "${c.name}" (${c.code})?`)) {
+                                deleteClass(c.id);
+                                triggerToast(`Đã xóa lớp ${c.name}!`);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                            title="Xóa lớp học"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1081,11 +1234,18 @@ export const AdminDashboard: React.FC = () => {
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              onClick={() => setEditingStudentData(s)}
+                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
+                              title="Chỉnh sửa thông tin học sinh"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
                               onClick={() => {
                                 setEditingStudent(s);
                                 setNewStudentPassInput('');
                               }}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                               title="Đặt lại mật khẩu học sinh"
                             >
                               <Key className="h-3.5 w-3.5" />
@@ -1133,7 +1293,7 @@ export const AdminDashboard: React.FC = () => {
 
           {/* Topic selector */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            {GENETICS_TOPICS.map((top) => (
+            {topics.map((top) => (
               <button
                 key={top.id}
                 onClick={() => setSelectedTopicKnowledgeId(top.id)}
@@ -1157,7 +1317,7 @@ export const AdminDashboard: React.FC = () => {
                   {currentKnowledge.topicId}
                 </span>
                 <h3 className="text-base font-extrabold text-slate-900 mt-1">
-                  {GENETICS_TOPICS.find(t => t.id === currentKnowledge.topicId)?.titleVi}
+                  {topics.find(t => t.id === currentKnowledge.topicId)?.titleVi || currentKnowledge.topicId}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Cập nhật bởi: <span className="font-semibold text-slate-800">{currentKnowledge.lastUpdatedByName || 'Tổ Chuyên Môn'}</span>
@@ -1168,6 +1328,14 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsEditKnowledgeModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Chỉnh Sửa Kiến Thức</span>
+                </button>
+
                 <button
                   onClick={() => handleResetKnowledge(currentKnowledge.topicId)}
                   className="px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1246,7 +1414,7 @@ export const AdminDashboard: React.FC = () => {
               className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:outline-none"
             >
               <option value="all">Tất cả chuyên đề</option>
-              {GENETICS_TOPICS.map((t) => (
+              {topics.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.titleVi}
                 </option>
@@ -1322,10 +1490,17 @@ export const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setEditingQuestionData(q)}
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors cursor-pointer"
+                            title="Chỉnh sửa câu hỏi"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
                           {q.status === 'draft' && (
                             <button
                               onClick={() => handleApproveQuestion(q)}
-                              className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] transition-colors"
+                              className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] transition-colors cursor-pointer"
                               title="Phê duyệt xuất bản"
                             >
                               Duyệt
@@ -1333,7 +1508,7 @@ export const AdminDashboard: React.FC = () => {
                           )}
                           <button
                             onClick={() => handleDeleteQuestion(q.id)}
-                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors"
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
                             title="Xóa câu hỏi"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1377,13 +1552,49 @@ export const AdminDashboard: React.FC = () => {
           <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-3 shadow-inner">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-300">Đường dẫn Google Apps Script Webhook Endpoint:</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
-                ACTIVE
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsEditingWebhookUrl(!isEditingWebhookUrl)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-500/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Pencil className="h-3 w-3" />
+                  <span>{isEditingWebhookUrl ? 'Đóng Chỉnh Sửa' : 'Sửa Endpoint Webhook'}</span>
+                </button>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                  ACTIVE
+                </span>
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-teal-400 break-all select-all">
-              {GOOGLE_SHEET_WEBAPP_URL}
-            </div>
+
+            {isEditingWebhookUrl ? (
+              <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-teal-500/40">
+                <input
+                  type="text"
+                  value={webhookUrlInput}
+                  onChange={(e) => setWebhookUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="w-full rounded-lg bg-slate-900 border border-teal-500/50 px-3 py-2 font-mono text-xs text-teal-300 focus:outline-none"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveWebhookUrl}
+                    className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs cursor-pointer"
+                  >
+                    Lưu Webhook Mới
+                  </button>
+                  <button
+                    onClick={handleResetWebhookUrl}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  >
+                    Khôi phục mặc định
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-teal-400 break-all select-all">
+                {currentWebhookUrl}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <button
                 onClick={handleTestPingWebhook}
@@ -1449,6 +1660,226 @@ export const AdminDashboard: React.FC = () => {
                 ))
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 8: QUẢN TRỊ DANH MỤC CHỦ ĐỀ DI TRUYỀN HỌC */}
+      {/* ========================================================================= */}
+      {activeTab === 'topics' && (
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-indigo-600" />
+                <span>Quản Trị &amp; Tùy Biến Danh Mục Chủ Đề (Topic Management)</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Đổi tên chủ đề, tùy biến mô tả, thay đổi mô hình 3D tương tác, xóa chủ đề không cần thiết hoặc thêm chủ đề mới.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  if (window.confirm('Khôi phục toàn bộ danh mục về 7 chủ đề chuẩn trong chương trình (theo hình ảnh)?')) {
+                    resetToDefault();
+                    triggerToast('Đã khôi phục 7 chủ đề chuẩn theo chương trình!');
+                  }
+                }}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Khôi phục 7 chủ đề chuẩn"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Khôi Phục 7 Chủ Đề Chuẩn</span>
+              </button>
+
+              <button
+                onClick={() => setIsAddTopicModalOpen(true)}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Thêm Chủ Đề Mới</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Module summary counters */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-indigo-600 tracking-wider">Tổng Số Chủ Đề</p>
+                <p className="text-xl font-black text-indigo-950 mt-0.5">{topics.length} Chủ Đề</p>
+              </div>
+              <span className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
+                {topics.length}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-sky-600 tracking-wider">Module A: Di Truyền Phân Tử</p>
+                <p className="text-xl font-black text-sky-950 mt-0.5">
+                  {topics.filter(t => t.module === 'molecular').length} Chủ Đề
+                </p>
+              </div>
+              <span className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center font-bold text-sm">
+                {topics.filter(t => t.module === 'molecular').length}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-purple-600 tracking-wider">Module B: Di Truyền Tế Bào</p>
+                <p className="text-xl font-black text-purple-950 mt-0.5">
+                  {topics.filter(t => t.module === 'cellular').length} Chủ Đề
+                </p>
+              </div>
+              <span className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
+                {topics.filter(t => t.module === 'cellular').length}
+              </span>
+            </div>
+          </div>
+
+          {/* Search & filter toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={topicSearch}
+                onChange={(e) => setTopicSearch(e.target.value)}
+                placeholder="Tìm chủ đề theo tên tiếng Việt, tiếng Anh, mã ID..."
+                className="w-full rounded-xl bg-slate-50 border border-slate-200 pl-10 pr-4 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+              <button
+                onClick={() => setTopicModuleFilter('all')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  topicModuleFilter === 'all'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tất cả ({topics.length})
+              </button>
+              <button
+                onClick={() => setTopicModuleFilter('molecular')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  topicModuleFilter === 'molecular'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Phân tử ({topics.filter(t => t.module === 'molecular').length})
+              </button>
+              <button
+                onClick={() => setTopicModuleFilter('cellular')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  topicModuleFilter === 'cellular'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tế bào ({topics.filter(t => t.module === 'cellular').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Topics Table */}
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="py-3 px-4 w-12 text-center">#</th>
+                  <th className="py-3 px-4 w-28">Mã ID</th>
+                  <th className="py-3 px-4">Tên Chủ Đề Tiếng Việt</th>
+                  <th className="py-3 px-4">Tên Tiếng Anh</th>
+                  <th className="py-3 px-4">Phân Loại Module</th>
+                  <th className="py-3 px-4">Mô Hình 3D</th>
+                  <th className="py-3 px-4">Thưởng XP</th>
+                  <th className="py-3 px-4 text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredTopics.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400 italic">
+                      Không tìm thấy chủ đề nào phù hợp.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTopics.map((top, idx) => (
+                    <tr key={top.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 text-center font-bold text-slate-400 font-mono">
+                        {top.order || idx + 1}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-700">
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-[11px]">
+                          {top.id}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">
+                        {top.titleVi}
+                        {top.descriptionVi && (
+                          <p className="text-[11px] font-normal text-slate-500 line-clamp-1 mt-0.5">
+                            {top.descriptionVi}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
+                        {top.titleEn}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                            top.module === 'molecular'
+                              ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                              : 'bg-purple-100 text-purple-800 border border-purple-200'
+                          }`}
+                        >
+                          {top.module === 'molecular' ? 'Module A: Phân tử' : 'Module B: Tế bào'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-slate-600">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold">
+                          {top.interactiveType}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-amber-700 font-bold font-mono">
+                        +{top.xpReward} XP
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setEditingTopicData(top)}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
+                            title="Chỉnh sửa & đổi tên chủ đề"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Xác nhận xóa chủ đề "${top.titleVi}" (${top.id}) khỏi hệ thống?`)) {
+                                deleteTopic(top.id);
+                                triggerToast(`Đã xóa chủ đề ${top.titleVi}!`);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                            title="Xóa chủ đề khỏi hệ thống"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -1760,6 +2191,72 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 6. Modal Chỉnh Sửa Thông Tin Giáo Viên */}
+      <EditTeacherModal
+        isOpen={!!editingTeacherData}
+        teacher={editingTeacherData}
+        onClose={() => setEditingTeacherData(null)}
+        onSave={handleSaveTeacherEdit}
+      />
+
+      {/* 7. Modal Chỉnh Sửa Lớp Học */}
+      <EditClassModal
+        isOpen={!!editingClassData}
+        classItem={editingClassData}
+        teachersList={teachersList}
+        onClose={() => setEditingClassData(null)}
+        onSave={handleSaveClassEdit}
+      />
+
+      {/* 8. Modal Chỉnh Sửa Học Sinh */}
+      <EditStudentModal
+        isOpen={!!editingStudentData}
+        student={editingStudentData}
+        classesList={classes}
+        onClose={() => setEditingStudentData(null)}
+        onSave={handleSaveStudentEdit}
+      />
+
+      {/* 9. Modal Chỉnh Sửa Toàn Diện Kiến Thức SGK */}
+      <EditKnowledgeModal
+        isOpen={isEditKnowledgeModalOpen}
+        topicTitleVi={topics.find(t => t.id === currentKnowledge.topicId)?.titleVi || currentKnowledge.topicId}
+        knowledge={currentKnowledge}
+        onClose={() => setIsEditKnowledgeModalOpen(false)}
+        onSave={handleSaveKnowledgeEdit}
+      />
+
+      {/* 10. Modal Chỉnh Sửa Câu Hỏi Ngân Hàng */}
+      <EditQuestionModal
+        isOpen={!!editingQuestionData}
+        question={editingQuestionData}
+        topics={topics}
+        onClose={() => setEditingQuestionData(null)}
+        onSave={handleSaveQuestionEdit}
+      />
+
+      {/* 11. Modal Chỉnh Sửa & Đổi Tên Chủ Đề */}
+      <EditTopicModal
+        isOpen={!!editingTopicData}
+        topic={editingTopicData}
+        onClose={() => setEditingTopicData(null)}
+        onSave={(id, updates) => {
+          updateTopic(id, updates);
+          triggerToast('Đã đổi tên và cập nhật cấu hình chủ đề thành công!');
+        }}
+      />
+
+      {/* 12. Modal Thêm Chủ Đề Mới */}
+      <AddTopicModal
+        isOpen={isAddTopicModalOpen}
+        existingTopics={topics}
+        onClose={() => setIsAddTopicModalOpen(false)}
+        onAdd={(newTopic) => {
+          addTopic(newTopic);
+          triggerToast(`Đã thêm chủ đề "${newTopic.titleVi}" vào hệ thống!`);
+        }}
+      />
     </div>
   );
 };

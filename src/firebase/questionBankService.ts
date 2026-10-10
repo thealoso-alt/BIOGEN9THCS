@@ -10,7 +10,7 @@ import {
 import { db, isFirebaseReady } from './config';
 import { QuestionItem, QuestionDifficulty, QuestionStatus, QuestionType } from '../types/question';
 import { TOPIC_QUESTION_BANKS, PracticeQuestion, MultipleChoiceQuestion, TrueFalseQuestion } from '../data/practiceQuestionsData';
-import { GENETICS_TOPICS } from '../data/topicsData';
+import { GENETICS_TOPICS, getEquivalentTopicIds } from '../data/topicsData';
 import { syncQuestionToGoogleSheet } from '../services/googleSheetService';
 
 const COLLECTION_NAME = 'questions';
@@ -315,9 +315,11 @@ export function convertQuestionItemToPracticeQuestion(q: QuestionItem): Practice
  * for a specific topic (strictly 7 MCQs + 3 True/False, or proportional based on bank).
  */
 export function getPracticeQuestionsFromBank(topicId: string): PracticeQuestion[] {
+  const allowedTopicIds = getEquivalentTopicIds(topicId);
+
   // Filter questions by topic and published status
   const topicQuestions = inMemoryQuestions.filter(
-    q => q.topicId === topicId && (q.status === 'published' || q.status === 'approved')
+    q => allowedTopicIds.includes(q.topicId) && (q.status === 'published' || q.status === 'approved')
   );
 
   const mcqs = topicQuestions.filter(q => q.type === 'mcq');
@@ -342,13 +344,17 @@ export function getPracticeQuestionsFromBank(topicId: string): PracticeQuestion[
     if (converted) result.push(converted);
   });
 
-  // If the bank has fewer than 10 questions for this topic, fallback to default topic bank
-  if (result.length < 5 && TOPIC_QUESTION_BANKS[topicId]) {
-    const fallbackBank = TOPIC_QUESTION_BANKS[topicId];
-    return [
-      ...fallbackBank.multipleChoice.slice(0, 7),
-      ...fallbackBank.trueFalse.slice(0, 3)
-    ];
+  // If the bank has fewer than 5 questions for this topic, fallback to default topic bank
+  if (result.length < 5) {
+    for (const tid of allowedTopicIds) {
+      if (TOPIC_QUESTION_BANKS[tid]) {
+        const fallbackBank = TOPIC_QUESTION_BANKS[tid];
+        const addedMcqs = fallbackBank.multipleChoice.slice(0, 7);
+        const addedTfs = fallbackBank.trueFalse.slice(0, 3);
+        result.push(...addedMcqs, ...addedTfs);
+        if (result.length >= 10) break;
+      }
+    }
   }
 
   return result;

@@ -5,8 +5,34 @@
  * Web App URL: https://script.google.com/macros/s/AKfycbxKAUbXXYwuY4BP9GIV8qU5LGXYBlRLH-Uk5fmTnqNEv9En7imMqn4kElY9Wxe8D5Kl/exec
  */
 
-export const GOOGLE_SHEET_WEBAPP_URL =
+export const DEFAULT_GOOGLE_SHEET_WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbxKAUbXXYwuY4BP9GIV8qU5LGXYBlRLH-Uk5fmTnqNEv9En7imMqn4kElY9Wxe8D5Kl/exec';
+
+const WEBAPP_URL_STORAGE_KEY = 'biogen9_custom_gas_webhook_url';
+
+export function getGoogleSheetWebhookUrl(): string {
+  try {
+    const custom = localStorage.getItem(WEBAPP_URL_STORAGE_KEY);
+    if (custom && custom.trim().startsWith('http')) return custom.trim();
+  } catch (e) {
+    console.warn(e);
+  }
+  return DEFAULT_GOOGLE_SHEET_WEBAPP_URL;
+}
+
+export function setGoogleSheetWebhookUrl(url: string): void {
+  try {
+    if (!url || !url.trim() || url.trim() === DEFAULT_GOOGLE_SHEET_WEBAPP_URL) {
+      localStorage.removeItem(WEBAPP_URL_STORAGE_KEY);
+    } else {
+      localStorage.setItem(WEBAPP_URL_STORAGE_KEY, url.trim());
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+export const GOOGLE_SHEET_WEBAPP_URL = DEFAULT_GOOGLE_SHEET_WEBAPP_URL;
 
 export interface TeacherSheetPayload {
   teacherCode: string;
@@ -132,7 +158,8 @@ async function sendToGoogleSheet(payload: Record<string, unknown>, description =
   try {
     const bodyStr = JSON.stringify(payload);
 
-    await fetch(GOOGLE_SHEET_WEBAPP_URL, {
+    const endpoint = getGoogleSheetWebhookUrl();
+    await fetch(endpoint, {
       method: 'POST',
       mode: 'no-cors',
       headers: {

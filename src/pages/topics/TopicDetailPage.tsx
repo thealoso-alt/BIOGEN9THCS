@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from '../../hooks/useNavigation';
 import { useAuth } from '../../hooks/useAuth';
-import { GENETICS_TOPICS } from '../../data/topicsData';
+import { GENETICS_TOPICS, useGeneticsTopics, getEquivalentTopicIds } from '../../data/topicsData';
 import { ENGLISH_BIO_TERMS } from '../../data/englishBioData';
 import {
   getRandomizedPracticeQuestionsForTopic,
@@ -73,8 +73,10 @@ export const TopicDetailPage: React.FC = () => {
     return 'interactive';
   });
 
-  const topic = GENETICS_TOPICS.find(t => t.id === selectedTopicId) || GENETICS_TOPICS[0];
-  const topicTerms = ENGLISH_BIO_TERMS.filter(term => term.topicId === topic.id);
+  const { topics } = useGeneticsTopics();
+  const topic = topics.find(t => t.id === selectedTopicId) || topics[0] || GENETICS_TOPICS[0];
+  const allowedTermIds = getEquivalentTopicIds(topic.id);
+  const topicTerms = ENGLISH_BIO_TERMS.filter(term => allowedTermIds.includes(term.topicId));
 
   // Practice questions state: loaded directly from the Teacher's Central Question Bank (Cloud Synced)
   const [practiceQuestions, setPracticeQuestions] = useState<PracticeQuestion[]>(() =>
@@ -415,7 +417,7 @@ export const TopicDetailPage: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-          <span className="text-cyan-400 font-bold">Chủ đề {topic.order}/15:</span>
+          <span className="text-cyan-400 font-bold">Chủ đề {topic.order}/{topics.length}:</span>
           <span>{topic.titleVi}</span>
         </div>
       </div>

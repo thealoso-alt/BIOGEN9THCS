@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
-import { GENETICS_TOPICS } from '../../data/topicsData';
+import { GENETICS_TOPICS, useGeneticsTopics } from '../../data/topicsData';
 import { DEMO_BADGES } from '../../data/mockSeedData';
 import { ProgressBar } from '../../components/ProgressBar';
 import { BadgeItem } from '../../components/BadgeItem';
@@ -23,6 +23,7 @@ import {
 export const StudentDashboard: React.FC = () => {
   const { user, classes, userProgress, resetProgressToZero } = useAuth();
   const { navigate, openTopic, openJoinClassModal } = useNavigation();
+  const { topics } = useGeneticsTopics();
 
   if (!user) {
     return (
@@ -39,7 +40,7 @@ export const StudentDashboard: React.FC = () => {
   }
 
   // Calculate overall stats
-  const totalTopics = GENETICS_TOPICS.length;
+  const totalTopics = topics.length || 1;
   const completedTopicsCount = Object.values(userProgress).filter(
     p => p.status === 'completed' || p.status === 'mastered'
   ).length;
@@ -48,8 +49,8 @@ export const StudentDashboard: React.FC = () => {
   // Determine current active topic (last studied or first in-progress or dna)
   const currentTopicId = Object.keys(userProgress).find(
     k => userProgress[k].status === 'in_progress'
-  ) || 'dna';
-  const currentTopic = GENETICS_TOPICS.find(t => t.id === currentTopicId) || GENETICS_TOPICS[0];
+  ) || (topics[0]?.id || 'dna');
+  const currentTopic = topics.find(t => t.id === currentTopicId) || topics[0] || GENETICS_TOPICS[0];
   const currentTopicProg = userProgress[currentTopicId]?.progressPercent || 0;
 
   // Current class name
@@ -210,13 +211,18 @@ export const StudentDashboard: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                 <div className="flex items-center justify-between text-xs mb-2">
                   <span className="font-bold text-white">Module A: Di truyền Phân tử</span>
-                  <span className="font-mono text-cyan-400 font-medium">8 Chủ đề</span>
+                  <span className="font-mono text-cyan-400 font-medium">
+                    {topics.filter(t => t.module === 'molecular').length} Chủ đề
+                  </span>
                 </div>
                 <ProgressBar
                   value={
-                    Math.round(
-                      (GENETICS_TOPICS.filter(t => t.module === 'molecular' && (userProgress[t.id]?.status === 'completed' || userProgress[t.id]?.status === 'mastered')).length / 8) * 100
-                    )
+                    topics.filter(t => t.module === 'molecular').length > 0
+                      ? Math.round(
+                          (topics.filter(t => t.module === 'molecular' && (userProgress[t.id]?.status === 'completed' || userProgress[t.id]?.status === 'mastered')).length /
+                            topics.filter(t => t.module === 'molecular').length) * 100
+                        )
+                      : 0
                   }
                   color="cyan"
                   height="sm"
@@ -227,13 +233,18 @@ export const StudentDashboard: React.FC = () => {
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
                 <div className="flex items-center justify-between text-xs mb-2">
                   <span className="font-bold text-white">Module B: Di truyền Tế bào</span>
-                  <span className="font-mono text-indigo-400 font-medium">7 Chủ đề</span>
+                  <span className="font-mono text-indigo-400 font-medium">
+                    {topics.filter(t => t.module === 'cellular').length} Chủ đề
+                  </span>
                 </div>
                 <ProgressBar
                   value={
-                    Math.round(
-                      (GENETICS_TOPICS.filter(t => t.module === 'cellular' && (userProgress[t.id]?.status === 'completed' || userProgress[t.id]?.status === 'mastered')).length / 7) * 100
-                    )
+                    topics.filter(t => t.module === 'cellular').length > 0
+                      ? Math.round(
+                          (topics.filter(t => t.module === 'cellular' && (userProgress[t.id]?.status === 'completed' || userProgress[t.id]?.status === 'mastered')).length /
+                            topics.filter(t => t.module === 'cellular').length) * 100
+                        )
+                      : 0
                   }
                   color="purple"
                   height="sm"
@@ -243,7 +254,7 @@ export const StudentDashboard: React.FC = () => {
 
             {/* Quick list of first 4 topics */}
             <div className="mt-5 space-y-2">
-              {GENETICS_TOPICS.slice(0, 4).map(topic => {
+              {topics.slice(0, 4).map(topic => {
                 const prog = userProgress[topic.id]?.progressPercent || 0;
                 const isComp = userProgress[topic.id]?.status === 'completed';
                 return (

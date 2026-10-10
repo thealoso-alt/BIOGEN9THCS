@@ -1,215 +1,325 @@
+import { useState, useEffect } from 'react';
 import { GeneticsTopic } from '../types/genetics';
+export type { GeneticsTopic };
 
-export const GENETICS_TOPICS: GeneticsTopic[] = [
-  // MODULE A – MOLECULAR GENETICS
+/**
+ * Danh sách 7 Chủ đề Di truyền học chuẩn theo chương trình và hình ảnh yêu cầu:
+ * 1. Chủ đề 1. Nucleic acid và gene.
+ * 2. Chủ đề 2. Tái bản DNA và phiên mã tạo RNA
+ * 3. Chủ đề 3. Dịch mã và mối quan hệ giữa gene và tính trạng.
+ * 4. Chủ đề 4. Đột biến gene.
+ * 5. Chủ đề 5. Nhiễm sắc thể và bộ nhiễm sắc thể.
+ * 6. Chủ đề 6. Nguyên phân và giảm phân.
+ * 7. Chủ đề 7. Nhiễm sắc thể giới tính và cơ chế xác định giới tính.
+ */
+export const DEFAULT_GENETICS_TOPICS: GeneticsTopic[] = [
+  // MODULE A – DI TRUYỀN PHÂN TỬ (MOLECULAR GENETICS)
   {
-    id: 'dna',
+    id: 'nucleic_acid_gene',
     order: 1,
     module: 'molecular',
-    titleVi: 'Cấu trúc & Chức năng DNA',
-    titleEn: 'DNA Structure & Function',
-    slug: 'dna',
-    descriptionVi: 'Khám phá cấu trúc xoắn kép theo mô hình Watson - Crick, các nucleotide A, T, G, C và nguyên tắc bổ sung.',
-    keyConcepts: ['Xoắn kép (Double Helix)', 'Nucleotide (A, T, G, C)', 'Nguyên tắc bổ sung (A-T, G-C)', 'Liên kết hydrogen & phosphodiester'],
+    titleVi: 'Chủ đề 1. Nucleic acid và gene.',
+    titleEn: 'Nucleic Acid & Gene',
+    slug: 'nucleic-acid-va-gene',
+    descriptionVi: 'Khám phá đại phân tử sinh học nucleic acid (DNA và RNA), mô hình xoắn kép Watson - Crick, các nucleotide A, T, G, C, U và bản chất hóa học, cấu trúc của gene.',
+    keyConcepts: [
+      'Nucleic acid (DNA & RNA)',
+      'Nucleotide (A, T, G, C, U)',
+      'Mô hình xoắn kép & Nguyên tắc bổ sung',
+      'Khái niệm & Cấu trúc của Gene',
+      'Mã di truyền (Codon)',
+    ],
     interactiveType: 'dna_helix',
-    xpReward: 100,
-    estimatedMinutes: 20,
+    xpReward: 150,
+    estimatedMinutes: 25,
   },
   {
-    id: 'gene',
+    id: 'dna_replication_transcription',
     order: 2,
     module: 'molecular',
-    titleVi: 'Gene & Bản chất hóa học của Gene',
-    titleEn: 'Gene & Chemical Nature',
-    slug: 'gene',
-    descriptionVi: 'Gene là một đoạn phân tử DNA mang thông tin mã hóa cho một sản phẩm nhất định (chuỗi polypeptide hoặc RNA).',
-    keyConcepts: ['Vùng điều hòa, mã hóa, kết thúc', 'Mã di truyền (Genetic Code)', 'Bộ ba mã hóa (Codon)'],
-    interactiveType: 'general',
-    xpReward: 100,
-    estimatedMinutes: 15,
-    prerequisiteId: 'dna',
-  },
-  {
-    id: 'rna',
-    order: 3,
-    module: 'molecular',
-    titleVi: 'Cấu trúc & Các loại RNA',
-    titleEn: 'RNA Structure & Types',
-    slug: 'rna',
-    descriptionVi: 'Tìm hiểu cấu trúc đơn chuỗi của RNA với các ribonucleotide A, U, G, C và phân loại mARN, tARN, rARN.',
-    keyConcepts: ['Ribonucleotide (A, U, G, C)', 'mARN (Thông tin)', 'tARN (Vận chuyển)', 'rARN (Ribosome)'],
-    interactiveType: 'general',
-    xpReward: 100,
-    estimatedMinutes: 15,
-    prerequisiteId: 'gene',
-  },
-  {
-    id: 'protein',
-    order: 4,
-    module: 'molecular',
-    titleVi: 'Cấu trúc & Chức năng Protein',
-    titleEn: 'Protein Structure & Function',
-    slug: 'protein',
-    descriptionVi: 'Các bậc cấu trúc bậc 1, 2, 3, 4 của protein được hình thành từ hơn 20 loại amino acid và vai trò biểu hiện tính trạng.',
-    keyConcepts: ['Amino acid (Đơn phân protein)', 'Liên kết peptide', 'Cấu trúc không gian bậc 1 - 4', 'Đa dạng & đặc thù'],
-    interactiveType: 'general',
-    xpReward: 100,
-    estimatedMinutes: 20,
-    prerequisiteId: 'rna',
-  },
-  {
-    id: 'dna_replication',
-    order: 5,
-    module: 'molecular',
-    titleVi: 'Nhân đôi DNA (Tái bản DNA)',
-    titleEn: 'DNA Replication',
-    slug: 'dna-replication',
-    descriptionVi: 'Quá trình tự nhân đôi diễn ra trong nhân tế bào tại pha S, theo nguyên tắc bổ sung và nguyên tắc bán bảo tồn.',
-    keyConcepts: ['Tháo xoắn (Unwinding)', 'Mạch khuôn (Template)', 'DNA Polymerase', 'Bán bảo tồn (Semi-conservative)'],
+    titleVi: 'Chủ đề 2. Tái bản DNA và phiên mã tạo RNA',
+    titleEn: 'DNA Replication & RNA Transcription',
+    slug: 'tai-ban-dna-va-phien-ma-tao-rna',
+    descriptionVi: 'Quá trình tự nhân đôi (tái bản) của DNA theo nguyên tắc bán bảo tồn và bổ sung, cùng cơ chế phiên mã tổng hợp các phân tử RNA (mARN, tARN, rARN) nhờ RNA polymerase.',
+    keyConcepts: [
+      'Tái bản DNA (Pha S của chu kỳ tế bào)',
+      'Nguyên tắc bán bảo tồn (Semi-conservative)',
+      'Enzyme DNA Polymerase & RNA Polymerase',
+      'Cơ chế phiên mã (Transcription)',
+      'Tổng hợp các loại RNA (mARN, tARN, rARN)',
+    ],
     interactiveType: 'replication',
     xpReward: 150,
     estimatedMinutes: 25,
-    prerequisiteId: 'dna',
+    prerequisiteId: 'nucleic_acid_gene',
   },
   {
-    id: 'transcription',
-    order: 6,
+    id: 'translation_gene_trait',
+    order: 3,
     module: 'molecular',
-    titleVi: 'Phiên mã (Tổng hợp RNA)',
-    titleEn: 'Transcription',
-    slug: 'transcription',
-    descriptionVi: 'Cơ chế truyền đạt thông tin di truyền từ mạch gốc DNA sang phân tử mARN nhờ enzyme RNA polymerase.',
-    keyConcepts: ['RNA Polymerase', 'Mạch gốc 3\'→5\'', 'Bổ sung: A-U, T-A, G-C, C-G', 'Phân tử mARN sơ khai'],
-    interactiveType: 'transcription',
-    xpReward: 150,
-    estimatedMinutes: 25,
-    prerequisiteId: 'rna',
-  },
-  {
-    id: 'translation',
-    order: 7,
-    module: 'molecular',
-    titleVi: 'Dịch mã (Tổng hợp Protein)',
-    titleEn: 'Translation',
-    slug: 'translation',
-    descriptionVi: 'Quá trình tổng hợp chuỗi polypeptide tại ribosome dựa trên trình tự các codon trên phân tử mARN.',
-    keyConcepts: ['Ribosome', 'Codon & Anticodon', 'Amino acid mở đầu Met', 'Kéo dài & Kết thúc chuỗi'],
+    titleVi: 'Chủ đề 3. Dịch mã và mối quan hệ giữa gene và tính trạng.',
+    titleEn: 'Translation & Gene-to-Trait Expression',
+    slug: 'dich-ma-va-moi-quan-he-giua-gene-va-tinh-trang',
+    descriptionVi: 'Cơ chế dịch mã tổng hợp chuỗi polypeptide tại ribosome và dòng lưu chuyển thông tin di truyền: Gene (DNA) → mARN → Protein → Tính trạng.',
+    keyConcepts: [
+      'Dịch mã (Translation tại Ribosome)',
+      'Codon trên mARN & Anticodon trên tARN',
+      'Amino acid mở đầu & Liên kết peptide',
+      'Cấu trúc & Vai trò biểu hiện của Protein',
+      'Sơ đồ: Gene → mARN → Protein → Tính trạng',
+    ],
     interactiveType: 'translation',
     xpReward: 150,
     estimatedMinutes: 25,
-    prerequisiteId: 'transcription',
+    prerequisiteId: 'dna_replication_transcription',
   },
   {
     id: 'gene_mutation',
-    order: 8,
+    order: 4,
     module: 'molecular',
-    titleVi: 'Đột biến Gene',
+    titleVi: 'Chủ đề 4. Đột biến gene.',
     titleEn: 'Gene Mutation',
-    slug: 'gene-mutation',
-    descriptionVi: 'Những biến đổi trong cấu trúc của gene liên quan đến một hoặc một số cặp nucleotide: mất, thêm, thay thế.',
-    keyConcepts: ['Mất cặp nuclêôtit', 'Thêm cặp nuclêôtit', 'Thay thế cặp nuclêôtit', 'Hậu quả và ý nghĩa'],
+    slug: 'dot-bien-gene',
+    descriptionVi: 'Những biến đổi trong cấu trúc hóa học của gene liên quan đến một hoặc một số cặp nucleotide: mất cặp, thêm cặp, thay thế cặp và ý nghĩa sinh học.',
+    keyConcepts: [
+      'Khái niệm đột biến gene & Đột biến điểm',
+      'Dạng mất, thêm, thay thế cặp nucleotide',
+      'Tác nhân vật lý, hóa học và sinh học',
+      'Hậu quả & Ý nghĩa trong tiến hóa và chọn giống',
+    ],
     interactiveType: 'general',
     xpReward: 150,
     estimatedMinutes: 20,
-    prerequisiteId: 'translation',
+    prerequisiteId: 'translation_gene_trait',
   },
 
-  // MODULE B – CELLULAR GENETICS
+  // MODULE B – DI TRUYỀN TẾ BÀO (CELLULAR GENETICS)
   {
-    id: 'chromosome',
-    order: 9,
+    id: 'chromosome_and_set',
+    order: 5,
     module: 'cellular',
-    titleVi: 'Nhiễm sắc thể (NST)',
-    titleEn: 'Chromosome Structure',
-    slug: 'chromosome',
-    descriptionVi: 'Cấu trúc mang vật chất di truyền ở cấp độ tế bào, gồm DNA liên kết với protein histone tạo thành nucleosome.',
-    keyConcepts: ['Cromatit (Chromatid)', 'Tâm động (Centromere)', 'Histone & Nucleosome', 'Sợi nhiễm sắc'],
+    titleVi: 'Chủ đề 5. Nhiễm sắc thể và bộ nhiễm sắc thể.',
+    titleEn: 'Chromosomes & Chromosome Sets',
+    slug: 'nhiem-sac-the-va-bo-nhiem-sac-the',
+    descriptionVi: 'Hình thái, cấu trúc siêu hiển vi của nhiễm sắc thể (phân tử DNA cuộn quanh hạt protein histone tạo nucleosome) và đặc trưng của bộ NST 2n, n của loài.',
+    keyConcepts: [
+      'Cấu trúc siêu hiển vi của NST',
+      'Nucleosome & Mức độ xoắn',
+      'Cromatit & Tâm động (Centromere)',
+      'Bộ NST lưỡng bội 2n & Đơn bội n',
+      'Tính đặc trưng hình thái, số lượng bộ NST',
+    ],
     interactiveType: 'chromosome',
-    xpReward: 120,
+    xpReward: 150,
     estimatedMinutes: 20,
   },
   {
-    id: 'chromosome_set',
-    order: 10,
+    id: 'mitosis_meiosis',
+    order: 6,
     module: 'cellular',
-    titleVi: 'Bộ Nhiễm sắc thể',
-    titleEn: 'Chromosome Set (Ploidy)',
-    slug: 'chromosome-set',
-    descriptionVi: 'Đặc trưng bộ NST ở mỗi loài: bộ lưỡng bội (2n) ở tế bào sinh dưỡng và bộ đơn bội (n) trong giao tử.',
-    keyConcepts: ['Lưỡng bội 2n (Diploid)', 'Đơn bội n (Haploid)', 'Cặp tương đồng (Homologous)', 'Bộ NST người 2n=46'],
-    interactiveType: 'general',
-    xpReward: 100,
-    estimatedMinutes: 15,
-    prerequisiteId: 'chromosome',
-  },
-  {
-    id: 'mitosis',
-    order: 11,
-    module: 'cellular',
-    titleVi: 'Nguyên phân (Phân bào có tơ)',
-    titleEn: 'Mitosis',
-    slug: 'mitosis',
-    descriptionVi: 'Hình thức phân chia tế bào sinh dưỡng đảm bảo duy trì ổn định bộ NST 2n qua các thế hệ tế bào.',
-    keyConcepts: ['Kỳ đầu (Prophase)', 'Kỳ giữa (Metaphase)', 'Kỳ sau (Anaphase)', 'Kỳ cuối & Phân chia tế bào chất'],
+    titleVi: 'Chủ đề 6. Nguyên phân và giảm phân.',
+    titleEn: 'Mitosis & Meiosis Cell Division',
+    slug: 'nguyen-phan-va-giam-phan',
+    descriptionVi: 'Diễn biến các kỳ của nguyên phân và giảm phân, sự tự nhân đôi, đóng xoắn, phân ly của nhiễm sắc thể và ý nghĩa duy trì tính ổn định của loài.',
+    keyConcepts: [
+      'Nguyên phân (Kỳ đầu, giữa, sau, cuối)',
+      'Giảm phân I (Trao đổi chéo, tiếp hợp NST)',
+      'Giảm phân II & Tạo 4 giao tử đơn bội (n)',
+      'So sánh Nguyên phân và Giảm phân',
+      'Ý nghĩa sinh học và thực tiễn chọn giống',
+    ],
     interactiveType: 'mitosis',
-    xpReward: 180,
+    xpReward: 200,
     estimatedMinutes: 30,
-    prerequisiteId: 'chromosome_set',
-  },
-  {
-    id: 'meiosis',
-    order: 12,
-    module: 'cellular',
-    titleVi: 'Giảm phân (Phân bào giảm nhiễm)',
-    titleEn: 'Meiosis',
-    slug: 'meiosis',
-    descriptionVi: 'Hình thức phân bào ở tế bào sinh dục thời kỳ chín, gồm 2 lần phân bào liên tiếp tạo ra 4 giao tử có bộ NST n.',
-    keyConcepts: ['Giảm phân I (Meiosis I)', 'Trao đổi chéo', 'Giảm phân II (Meiosis II)', 'Tạo 4 giao tử đơn bội (n)'],
-    interactiveType: 'meiosis',
-    xpReward: 180,
-    estimatedMinutes: 30,
-    prerequisiteId: 'mitosis',
+    prerequisiteId: 'chromosome_and_set',
   },
   {
     id: 'sex_determination',
-    order: 13,
+    order: 7,
     module: 'cellular',
-    titleVi: 'Cơ chế xác định giới tính',
-    titleEn: 'Sex Determination',
-    slug: 'sex-determination',
-    descriptionVi: 'Sự phân ly và tổ hợp của cặp nhiễm sắc thể giới tính (XX - XY hoặc XO - XX) trong thụ tinh quy định giới tính.',
-    keyConcepts: ['NST thường (Autosome)', 'NST giới tính (Sex Chromosome)', 'Đồng giao tử & Dị giao tử', 'Tỉ lệ đực : cái 1:1'],
-    interactiveType: 'general',
-    xpReward: 120,
-    estimatedMinutes: 20,
-    prerequisiteId: 'meiosis',
-  },
-  {
-    id: 'genetic_linkage',
-    order: 14,
-    module: 'cellular',
-    titleVi: 'Di truyền liên kết (Morgan)',
-    titleEn: 'Genetic Linkage',
-    slug: 'genetic-linkage',
-    descriptionVi: 'Các gene cùng nằm trên một nhiễm sắc thể di truyền cùng nhau tạo thành một nhóm gene liên kết.',
-    keyConcepts: ['Nhóm gene liên kết', 'Thí nghiệm ruồi giấm của Morgan', 'Hạn chế biến dị tổ hợp'],
-    interactiveType: 'general',
-    xpReward: 120,
-    estimatedMinutes: 20,
-    prerequisiteId: 'chromosome',
-  },
-  {
-    id: 'chromosomal_mutation',
-    order: 15,
-    module: 'cellular',
-    titleVi: 'Đột biến Nhiễm sắc thể',
-    titleEn: 'Chromosomal Mutation',
-    slug: 'chromosomal-mutation',
-    descriptionVi: 'Biến đổi về cấu trúc NST (mất đoạn, lặp đoạn, đảo đoạn, chuyển đoạn) hoặc số lượng NST (dị bội, đa bội).',
-    keyConcepts: ['Đột biến cấu trúc NST', 'Mất đoạn, Lặp đoạn', 'Đột biến số lượng NST', 'Thể dị bội (2n±1) & Thể đa bội (3n, 4n)'],
+    titleVi: 'Chủ đề 7. Nhiễm sắc thể giới tính và cơ chế xác định giới tính.',
+    titleEn: 'Sex Chromosomes & Sex Determination',
+    slug: 'nhiem-sac-the-gioi-tinh-va-co-che-xac-dinh-gioi-tinh',
+    descriptionVi: 'Đặc điểm cặp NST giới tính (XX, XY), cơ chế phân ly tổ hợp trong thụ tinh xác định tỉ lệ đực : cái 1:1 và các yếu tố môi trường ảnh hưởng phân hóa giới tính.',
+    keyConcepts: [
+      'Nhiễm sắc thể giới tính (XX, XY, XO)',
+      'Cơ chế phân ly & tổ hợp trong thụ tinh',
+      'Tỉ lệ giới tính xấp xỉ 1 đực : 1 cái',
+      'Yếu tố bên trong & Môi trường ngoài ảnh hưởng',
+      'Ứng dụng điều khiển giới tính trong nông nghiệp',
+    ],
     interactiveType: 'general',
     xpReward: 150,
-    estimatedMinutes: 25,
-    prerequisiteId: 'chromosome_set',
+    estimatedMinutes: 20,
+    prerequisiteId: 'mitosis_meiosis',
   },
 ];
+
+/**
+ * Storage key version for the 7 official curriculum topics
+ */
+const LOCAL_STORAGE_TOPICS_KEY = 'biogen9_curriculum_topics_7_v1';
+
+/**
+ * Helper to map legacy topic IDs or aliases to canonical 7 topics
+ */
+export function getEquivalentTopicIds(topicId: string): string[] {
+  switch (topicId) {
+    case 'nucleic_acid_gene':
+    case 'dna':
+    case 'gene':
+    case 'rna':
+      return ['nucleic_acid_gene', 'dna', 'gene', 'rna'];
+    case 'dna_replication_transcription':
+    case 'dna_replication':
+    case 'transcription':
+      return ['dna_replication_transcription', 'dna_replication', 'transcription'];
+    case 'translation_gene_trait':
+    case 'translation':
+    case 'protein':
+      return ['translation_gene_trait', 'translation', 'protein'];
+    case 'gene_mutation':
+      return ['gene_mutation'];
+    case 'chromosome_and_set':
+    case 'chromosome':
+    case 'chromosome_set':
+      return ['chromosome_and_set', 'chromosome', 'chromosome_set'];
+    case 'mitosis_meiosis':
+    case 'mitosis':
+    case 'meiosis':
+      return ['mitosis_meiosis', 'mitosis', 'meiosis'];
+    case 'sex_determination':
+    case 'sex_chromosome_determination':
+      return ['sex_determination', 'sex_chromosome_determination'];
+    default:
+      return [topicId];
+  }
+}
+
+function loadStoredTopics(): GeneticsTopic[] {
+  try {
+    // Clean up outdated storage key if it had 15 topics
+    if (typeof localStorage !== 'undefined') {
+      const oldRaw = localStorage.getItem('biogen9_custom_topics_v1');
+      if (oldRaw) {
+        localStorage.removeItem('biogen9_custom_topics_v1');
+      }
+    }
+
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LOCAL_STORAGE_TOPICS_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length === 7) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load stored topics, using default 7 topics:', e);
+  }
+  return DEFAULT_GENETICS_TOPICS;
+}
+
+// Active array exported and kept updated in place
+export const GENETICS_TOPICS: GeneticsTopic[] = [...loadStoredTopics()];
+
+/**
+ * Returns current topics
+ */
+export function getGeneticsTopics(): GeneticsTopic[] {
+  return [...GENETICS_TOPICS];
+}
+
+/**
+ * Saves and emits topic update event
+ */
+export function saveGeneticsTopics(newTopics: GeneticsTopic[]): void {
+  GENETICS_TOPICS.splice(0, GENETICS_TOPICS.length, ...newTopics);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(LOCAL_STORAGE_TOPICS_KEY, JSON.stringify(newTopics));
+    }
+  } catch (e) {
+    console.warn('Failed to persist topics:', e);
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('biogen9_topics_changed', { detail: newTopics }));
+  }
+}
+
+/**
+ * Update an existing topic by ID
+ */
+export function updateGeneticsTopic(id: string, updates: Partial<GeneticsTopic>): boolean {
+  const current = getGeneticsTopics();
+  const idx = current.findIndex(t => t.id === id);
+  if (idx === -1) return false;
+  current[idx] = { ...current[idx], ...updates };
+  saveGeneticsTopics(current);
+  return true;
+}
+
+/**
+ * Delete a topic by ID
+ */
+export function deleteGeneticsTopic(id: string): boolean {
+  const current = getGeneticsTopics();
+  const filtered = current.filter(t => t.id !== id);
+  if (filtered.length === current.length) return false;
+  // Re-number order
+  const reordered = filtered.map((t, index) => ({
+    ...t,
+    order: index + 1,
+  }));
+  saveGeneticsTopics(reordered);
+  return true;
+}
+
+/**
+ * Add a new topic
+ */
+export function addGeneticsTopic(topic: GeneticsTopic): boolean {
+  const current = getGeneticsTopics();
+  if (current.some(t => t.id === topic.id)) return false;
+  const newOrder = topic.order || current.length + 1;
+  const newTopic: GeneticsTopic = {
+    ...topic,
+    order: newOrder,
+  };
+  saveGeneticsTopics([...current, newTopic]);
+  return true;
+}
+
+/**
+ * Reset topics to the 7 curriculum default topics
+ */
+export function resetGeneticsTopicsToDefault(): void {
+  saveGeneticsTopics(DEFAULT_GENETICS_TOPICS);
+}
+
+/**
+ * React Hook for dynamic topic updates across all pages
+ */
+export function useGeneticsTopics() {
+  const [topics, setTopics] = useState<GeneticsTopic[]>(() => getGeneticsTopics());
+
+  useEffect(() => {
+    const handler = () => {
+      setTopics(getGeneticsTopics());
+    };
+    window.addEventListener('biogen9_topics_changed', handler);
+    window.addEventListener('storage', handler);
+    return () => {
+      window.removeEventListener('biogen9_topics_changed', handler);
+      window.removeEventListener('storage', handler);
+    };
+  }, []);
+
+  return {
+    topics,
+    updateTopic: updateGeneticsTopic,
+    deleteTopic: deleteGeneticsTopic,
+    addTopic: addGeneticsTopic,
+    resetToDefault: resetGeneticsTopicsToDefault,
+    saveTopics: saveGeneticsTopics,
+  };
+}

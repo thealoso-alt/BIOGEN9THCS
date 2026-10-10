@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigation } from '../../hooks/useNavigation';
-import { GENETICS_TOPICS } from '../../data/topicsData';
+import { GENETICS_TOPICS, useGeneticsTopics } from '../../data/topicsData';
 import { DEMO_QUESTIONS } from '../../data/mockSeedData';
 import { QuestionItem, QuestionStatus, QuestionType, QuestionDifficulty } from '../../types/question';
 import { ClassRoom, StudentAccount } from '../../types/auth';
@@ -66,6 +66,7 @@ export const TeacherDashboard: React.FC = () => {
     deleteStudent,
   } = useAuth();
   const { navigate } = useNavigation();
+  const { topics: geneticsTopics } = useGeneticsTopics();
 
   // Active teacher tabs: overview, classes, students, questions, ai_generator, analytics
   const [activeTab, setActiveTab] = useState<'overview' | 'classes' | 'students' | 'questions' | 'ai_generator' | 'analytics'>('overview');
@@ -92,7 +93,7 @@ export const TeacherDashboard: React.FC = () => {
   // Add / Edit Question Modal State
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  const [formTopicId, setFormTopicId] = useState('dna');
+  const [formTopicId, setFormTopicId] = useState('nucleic_acid_gene');
   const [formQuestionType, setFormQuestionType] = useState<QuestionType>('mcq');
   const [formPrompt, setFormPrompt] = useState('');
   const [formOptions, setFormOptions] = useState<string[]>(['', '', '', '']);
@@ -154,7 +155,7 @@ export const TeacherDashboard: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // AI Generator Form
-  const [aiTopicId, setAiTopicId] = useState('dna_replication');
+  const [aiTopicId, setAiTopicId] = useState('nucleic_acid_gene');
   const [aiCount, setAiCount] = useState(5);
   const [aiDifficulty, setAiDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [aiType, setAiType] = useState<QuestionType>('mcq');
@@ -417,7 +418,7 @@ export const TeacherDashboard: React.FC = () => {
     setAiSuccessMsg(null);
 
     setTimeout(() => {
-      const targetTopic = GENETICS_TOPICS.find(t => t.id === aiTopicId) || GENETICS_TOPICS[0];
+      const targetTopic = geneticsTopics.find(t => t.id === aiTopicId) || geneticsTopics[0];
       const newDraftQuestion: QuestionItem = {
         id: 'q_ai_' + Date.now(),
         topicId: aiTopicId,
@@ -1516,7 +1517,7 @@ export const TeacherDashboard: React.FC = () => {
                 onChange={e => setAiTopicId(e.target.value)}
                 className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2.5 text-xs text-white focus:border-cyan-500 focus:outline-none"
               >
-                {GENETICS_TOPICS.map(topic => (
+                {geneticsTopics.map(topic => (
                   <option key={topic.id} value={topic.id}>
                     Chủ đề {topic.order}: {topic.titleVi} ({topic.titleEn})
                   </option>
@@ -1672,7 +1673,7 @@ export const TeacherDashboard: React.FC = () => {
                   className="w-full py-2 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white focus:border-purple-500 focus:outline-none font-medium"
                 >
                   <option value="all">📚 Tất cả chuyên đề ({questions.length})</option>
-                  {GENETICS_TOPICS.map(t => (
+                  {geneticsTopics.map(t => (
                     <option key={t.id} value={t.id}>
                       {t.titleVi} ({questions.filter(q => q.topicId === t.id).length})
                     </option>
@@ -1763,7 +1764,7 @@ export const TeacherDashboard: React.FC = () => {
           ) : (
             <div className="space-y-3.5">
               {filteredQuestions.map((q, idx) => {
-                const topicObj = GENETICS_TOPICS.find(t => t.id === q.topicId);
+                const topicObj = geneticsTopics.find(t => t.id === q.topicId);
                 return (
                   <div
                     key={q.id}
@@ -2164,7 +2165,7 @@ export const TeacherDashboard: React.FC = () => {
                     onChange={e => setFormTopicId(e.target.value)}
                     className="w-full py-2.5 px-3 rounded-xl bg-slate-950 border border-slate-700 text-white font-semibold focus:border-purple-500 focus:outline-none"
                   >
-                    {GENETICS_TOPICS.map(t => (
+                    {geneticsTopics.map(t => (
                       <option key={t.id} value={t.id}>
                         {t.titleVi}
                       </option>

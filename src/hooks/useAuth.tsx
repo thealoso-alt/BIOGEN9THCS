@@ -68,6 +68,9 @@ interface AuthContextType {
   resetTeacherPassword: (teacherUid: string, newPassword: string) => boolean;
   deleteClass: (classId: string) => boolean;
   getAllStudents: () => StudentAccount[];
+  updateTeacher: (teacherUid: string, data: Partial<UserAccountCredential>) => boolean;
+  updateClass: (classId: string, data: Partial<ClassRoom>) => boolean;
+  updateStudent: (studentUid: string, data: Partial<StudentAccount & { password?: string; classId?: string }>) => boolean;
 }
 
 export function generateUniqueTeacherCode(existingList: Array<{ teacherCode?: string }>): string {
@@ -1017,6 +1020,154 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
   };
 
+  /**
+   * Admin: Update teacher profile and credentials
+   */
+  const updateTeacher = (teacherUid: string, data: Partial<UserAccountCredential>): boolean => {
+    const target = accounts.find(a => a.uid === teacherUid);
+    if (!target) return false;
+    const updated: UserAccountCredential = {
+      ...target,
+      ...data,
+      password: data.password ? data.password.trim() : target.password,
+      initialPassword: data.password ? data.password.trim() : target.initialPassword,
+    };
+    setAccounts(prev => prev.map(a => a.uid === teacherUid ? updated : a));
+    saveSingleAccountToCloud(updated).catch(err => console.warn('Could not update teacher in cloud:', err));
+
+    // Update teacher info in classes if teacherName or teacherCode changed
+    if (data.fullName || data.teacherCode) {
+      setClasses(prev => prev.map(c => {
+        if (c.teacherId === teacherUid || c.teacherCode === target.teacherCode) {
+          const updatedClass = {
+            ...c,
+            teacherName: data.fullName || c.teacherName,
+            teacherCode: data.teacherCode || c.teacherCode,
+          };
+          saveClassToCloud(updatedClass).catch(err => console.warn(err));
+          return updatedClass;
+        }
+        return c;
+      }));
+    }
+
+    // Auto-sync to Google Sheet
+    syncTeacherToGoogleSheet({
+      teacherCode: updated.teacherCode || `GV-${updated.uid.slice(-6)}`,
+      fullName: updated.fullName,
+      username: updated.username,
+      email: updated.email || '',
+      schoolName: updated.schoolName || '',
+      registeredAt: updated.createdAt || new Date().toISOString(),
+    }).catch(err => console.warn('Could not sync updated teacher to Google Sheet:', err));
+
+    return true;
+  };
+
+  /**
+   * Admin: Update class information
+   */
+  const updateClass = (classId: string, data: Partial<ClassRoom>): boolean => {
+    const target = classes.find(c => c.id === classId);
+    if (!target) return false;
+    const updated: ClassRoom = {
+      ...target,
+      ...data,
+    };
+    setClasses(prev => prev.map(c => c.id === classId ? updated : c));
+    saveClassToCloud(updated).catch(err => console.warn('Could not update class in cloud:', err));
+
+    // Auto-sync to Google Sheet
+    syncClassToGoogleSheet({
+      classId: updated.id,
+      classCode: updated.code,
+      className: updated.name,
+      subject: updated.subject,
+      schoolYear: updated.schoolYear,
+      teacherCode: updated.teacherCode || '',
+      teacherName: updated.teacherName || '',
+      studentCount: updated.studentCount,
+      createdAt: updated.createdAt,
+    }).catch(err => console.warn('Could not sync updated class to Google Sheet:', err));
+
+    return true;
+  };
+
+  /**
+   * Admin: Update student profile, class assignment, or credentials
+   */
+  const updateStudent = (studentUid: string, data: Partial<StudentAccount & { password?: string; classId?: string }>): boolean => {
+    const target = accounts.find(a => a.uid === studentUid);
+    if (!target) return false;
+
+    let targetClassId = data.classId || target.classIds[0];
+    let newClassIds = target.classIds;
+    if (data.classId && !target.classIds.includes(data.classId)) {
+      newClassIds = [data.classId];
+    }
+    const targetClass = classes.find(c => c.id === targetClassId);
+
+    const updated: UserAccountCredential = {
+      ...target,
+      fullName: data.fullName !== undefined ? data.fullName.trim() : target.fullName,
+      studentCode: data.studentCode !== undefined ? data.studentCode.trim() : target.studentCode,
+      username: data.username !== undefined ? data.username.trim() : target.username,
+      email: data.email !== undefined ? data.email.trim() : target.email,
+      schoolName: data.notes !== undefined ? data.notes.trim() : target.schoolName,
+      password: data.password ? data.password.trim() : target.password,
+      initialPassword: data.password ? data.password.trim() : target.initialPassword,
+      classIds: newClassIds,
+      currentClassId: targetClassId || target.currentClassId,
+      xp: data.xp !== undefined ? data.xp : target.xp,
+      level: data.level !== undefined ? data.level : target.level,
+    };
+
+    setAccounts(prev => prev.map(a => a.uid === studentUid ? updated : a));
+    saveSingleAccountToCloud(updated).catch(err => console.warn('Could not update student in cloud:', err));
+
+    // If transferred class, update student counts in classes
+    if (data.classId && target.classIds[0] !== data.classId) {
+      const oldClassId = target.classIds[0];
+      setClasses(prev => prev.map(c => {
+        if (c.id === oldClassId) {
+          const updatedOld = {
+            ...c,
+            studentCount: Math.max(0, c.studentCount - 1),
+            studentIds: c.studentIds.filter(id => id !== studentUid),
+          };
+          saveClassToCloud(updatedOld).catch(err => console.warn(err));
+          return updatedOld;
+        }
+        if (c.id === data.classId) {
+          const updatedNew = {
+            ...c,
+            studentCount: c.studentCount + 1,
+            studentIds: c.studentIds.includes(studentUid) ? c.studentIds : [...c.studentIds, studentUid],
+          };
+          saveClassToCloud(updatedNew).catch(err => console.warn(err));
+          return updatedNew;
+        }
+        return c;
+      }));
+    }
+
+    // Auto-sync to Google Sheet
+    syncStudentsToGoogleSheet([{
+      studentCode: updated.studentCode || `HS-${updated.uid.slice(-6)}`,
+      fullName: updated.fullName,
+      username: updated.username,
+      password: updated.password,
+      classCode: targetClass?.code || 'BIO9',
+      className: targetClass?.name || 'Lớp Sinh học',
+      teacherCode: targetClass?.teacherCode || '',
+      email: updated.email || '',
+      notes: updated.schoolName || '',
+      createdAt: updated.createdAt || new Date().toISOString(),
+    }]).catch(err => console.warn('Could not sync updated student to Google Sheet:', err));
+
+    return true;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -1044,6 +1195,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetTeacherPassword,
         deleteClass,
         getAllStudents,
+        updateTeacher,
+        updateClass,
+        updateStudent,
       }}
     >
       {children}
